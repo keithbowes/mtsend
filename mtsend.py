@@ -10,6 +10,9 @@
 # HISTORY
 # =======
 #
+# 0.6.1 - 6 Apr 2004
+# + Properly handles mt_allow_comments for MT2.6 servers.
+#
 # 0.6 - 1 Apr 2004
 # + Add build-in support for HTTP proxy server, which is detected via
 #   environment variable HTTP_PROXY.
@@ -395,8 +398,6 @@ class MT:
         proxy = os.environ.get('HTTP_PROXY') or os.environ.get('http_proxy')
         if proxy:
             import re
-            import urlparse
-
             match = re.match(r'^(http://)?(([^:@]+)(:([^@]*))?@)?([^:]+):(\d+)',
                 proxy)
 
@@ -501,14 +502,6 @@ class MT:
             else:
                 raise KeyError, option
 
-    def _readInputFromEditor(self):
-        # Figure out which editor should we run. We will look at the EDITOR
-        # environment variable first.
-        try:
-            editor = os.environ['EDITOR']
-        except KeyError:
-            raise Exception, 'Environment variable "EDITOR" is not set.'
-        
 try:
     import xmlrpclib
 except ImportError:
@@ -585,12 +578,6 @@ def decodeISO8601(date):
         result += [0, 0, -1]
         return tuple(result)
 
-def parseBoolean(value):
-    # In the MovableType 2.5.x XML-RPC specification, boolean values are real
-    # XML-RPC boolean objects. Whereas in MovableType 2.6.x, it changes to
-    # simple integer values.
-    return value == '1' and 1 or 0
- 
 def parsePost():
     state = 0
     code = None
@@ -631,7 +618,7 @@ def parsePost():
                     except IndexError:
                         pass
                     else:
-                        if match.group(8) == 'PM':
+                        if pm:
                             if result[3] != 12:
                                 result[3] += 12
                         elif result[3] == 12:
@@ -645,9 +632,13 @@ def parsePost():
                 elif key == 'STATUS':
                     publish = xmlrpclib.Boolean(val.lower() == 'publish')
                 elif key == 'ALLOW COMMENTS':
-                    post['mt_allow_comments'] = parseBoolean(val)
+                    val = int(val)
+                    if val not in (0, 1, 2):
+                        raise Exception, \
+                            'ALLOW COMMENTS must be either 0, 1 or 2'
+                    post['mt_allow_comments'] = val
                 elif key == 'ALLOW PINGS':
-                    post['mt_allow_pings'] = parseBoolean(val)
+                    post['mt_allow_pings'] = int(val)
                 elif key == 'PING':
                     try:
                         post['mt_tb_ping_urls'].append(val)
@@ -694,16 +685,6 @@ def parsePost():
 
     return post, cts, publish
 
-def printBoolean(val):
-    if isinstance(val, xmlrpclib.Boolean):
-        return val and '1' or '0'
-    elif type(val) == type(1):
-        return val and '1' or '0'
-    elif type(val) == type('1'):
-        return val == '1' and '1' or '0'
-
-    assert(0), 'Invalid boolean value: %s' % val
-
 def printPost(post, cts):
     if post.has_key('title'):
         print 'TITLE:', post['title']
@@ -721,32 +702,32 @@ def printPost(post, cts):
     print 'STATUS: publish'
 
     if post.has_key('mt_allow_comments'):
-        print 'ALLOW COMMENTS:', printBoolean(post['mt_allow_comments'])
+        print 'ALLOW COMMENTS:', post['mt_allow_comments']
     
     if post.has_key('mt_allow_pings'):
-        print 'ALLOW PINGS:', printBoolean(post['mt_allow_pings'])
+        print 'ALLOW PINGS:', post['mt_allow_pings']
     
     if post.has_key('mt_convert_breaks'):
         print 'CONVERT BREAKS:', post['mt_convert_breaks']
 
-    if post.has_key('mt_keywords'):
+    if post.get('mt_keywords'):
         print 'KEYWORDS:', post['mt_keywords']
 
     # We will also print the postid so that it can be verified later.
     print 'POSTID:', post['postid']
 
     # Start printing the body
-    if post.has_key('description') and post['description']:
+    if post.get('description'):
         print '-----'
         print 'BODY:'
         print post['description']
 
-    if post.has_key('mt_text_more') and post['mt_text_more']:
+    if post.get('mt_text_more'):
         print '-----'
         print 'EXTENDED BODY:'
         print post['mt_text_more']
         
-    if post.has_key('mt_excerpt') and post['mt_excerpt']:
+    if post.get('mt_excerpt'):
         print '-----'
         print 'EXCERPT:'
         print post['mt_excerpt']
@@ -777,7 +758,6 @@ def printTable(table, heading=1):
 
 def main(args):
     import getopt
-    import socket
     try:
         opts, args = getopt.getopt(args, 'a:B:Cc:E:G:hL:NP:qR:TU:vV')
     except getopt.GetoptError, ex:
