@@ -10,6 +10,11 @@
 # HISTORY
 # =======
 #
+# 0.6 - 1 Apr 2004
+# + Add build-in support for HTTP proxy server, which is detected via
+#   environment variable HTTP_PROXY.
+# + Alternative encoding for XML-RPC packets.
+#
 # 0.5 - 14 Oct 2003
 # + Remove the support of MT2.5. Use the older version of mtsend.py if you
 #   need these supports.
@@ -64,9 +69,11 @@
 #     url=http://testdomain.com/mtinstall/mt-xmlrpc.cgi
 #     username=foo
 #     password=bar
+#     encoding=UTF-8
 #
 #   It defines site "test" with the URL to the MovableType's XML-RPC CGI
-#   script, and the username/password used to access that site.
+#   script, and the username/password used to access that site. "encoding" is
+#   optional, and defaults to UTF-8.
 #
 # Blog Section:
 #   You can have multiple blog sections for each Movable Type blogs you have
@@ -182,9 +189,9 @@ For more information, please visit:
 '''
 
 __author__      = 'Scott Yang <scotty@yang.id.au>'
-__copyright__   = 'Copyright (c) 2002-2003 Scott Yang'
-__date__        = '2003/10/14'
-__version__     = 'Version 0.5'
+__copyright__   = 'Copyright (c) 2002-2004 Scott Yang'
+__date__        = '2004/04/01'
+__version__     = 'Version 0.6'
 
 import ConfigParser
 import os
@@ -198,7 +205,7 @@ class MT:
         self.config = None
         self.mode = None
         self.verbose = 1
-
+        self.rpcsrv = None
 
     def __getattr__(self, attr):
         if attr == 'blogid':
@@ -230,10 +237,11 @@ class MT:
     def execute_c(self):
         srv = self.getRPCServer()
         cts = srv.mt.getCategoryList(self.blogid, self.username, self.password)
-        result = [['ID', 'Category Name']]
+        result = []
         for cat in cts:
             result.append([cat['categoryId'], cat['categoryName']])
         result.sort(lambda x, y: cmp(x[1], y[1]))
+        result[0:0] = [['ID', 'Category Name']]
         printTable(result)
 
     def execute_e(self):
@@ -260,7 +268,7 @@ class MT:
         cts = self._fixCategories(cts)
         if len(cts) > 0:
             self.log(1, 'Add categories "%s" to post entry "%s"...',
-                     ','.join([x['categoryId'] for x in cts]), postid)
+                ','.join([x['categoryId'] for x in cts]), postid)
             srv.mt.setPostCategories(postid, self.username, self.password, cts)
  
     def execute_g(self):
@@ -366,13 +374,41 @@ class MT:
         }
         
         result = srv.metaWeblog.newMediaObject(self.blogid, self.username, 
-                                               self.password, media_object)
+            self.password, media_object)
 
         print result['url']
 
-
     def getRPCServer(self):
-        return xmlrpclib.Server(self._getSite('url'))
+        if self.rpcsrv is not None:
+            return self.rpcsrv
+
+        transport = self.getRPCTransport()
+
+        # Default we will use 'UTF-8' encoding, if the site encoding option is
+        # not provided.
+        return xmlrpclib.ServerProxy(self._getSite('url'), transport, 
+            self._getSite('encoding', 'UTF-8'))
+
+    def getRPCTransport(self):
+        # Detect whether we need to use 'ProxyTranspory'. Proxy detection is
+        # done using HTTP_PROXY or http_proxy environment variable.
+        proxy = os.environ.get('HTTP_PROXY') or os.environ.get('http_proxy')
+        if proxy:
+            import re
+            import urlparse
+
+            match = re.match(r'^(http://)?(([^:@]+)(:([^@]*))?@)?([^:]+):(\d+)',
+                proxy)
+
+            if match:
+                username = match.group(3) or None
+                password = match.group(5) or None
+                hostname = match.group(6)
+                bindport = int(match.group(7))
+
+                return ProxyTransport(hostname, bindport, username, password)
+
+        return xmlrpclib.Transport()
 
     def loadConfig(self, config):
         if config is None:
@@ -381,7 +417,7 @@ class MT:
         if not os.access(config, os.R_OK):
             raise Exception, \
                 'Configuration file "%s" is not readable' % config
-            
+
         self.config = ConfigParser.ConfigParser()
         self.config.read([config])
 
@@ -395,12 +431,6 @@ class MT:
             self.modeopt = modeopt
         else:
             raise Exception, 'Conflicting operational mode.'
-
-    def _detectMTVersion(self):
-        # FIXME: We can use XML-RPC introspection to check what methods the
-        # server supports. It can then help us to see what version MT is
-        # installed on the server side.
-        return 2.5
 
     def _fixCategories(self, cts):
         if len(cts) > 0:
@@ -479,6 +509,67 @@ class MT:
         except KeyError:
             raise Exception, 'Environment variable "EDITOR" is not set.'
         
+try:
+    import xmlrpclib
+except ImportError:
+    # Error reporting will be raised in the main() function. We will simply
+    # ignore the error here.
+    xmlrpclib = None
+else:
+    class ProxyTransport(xmlrpclib.Transport):
+        """Transport class for the XMLRPC.
+
+        Instead of using the HTTP/HTTPS transport, it tries to use a proxy
+        server to send/receive XMLRPC messages. This transport must be
+        initialised with the hostname and port number of the proxy server,
+        e.g.
+
+            transport = ProxyTransport('proxy.mydomain.com', 3128)
+            server = Server("http://betty.userland.com", transport)
+            print server.examples.getStateName(41)
+
+        """
+
+        def __init__(self, host, port=3128, username=None, password=None):
+            self.__host = host
+            self.__port = port
+            self.__username = username
+            self.__password = password
+
+        def make_connection(self, host):
+            "Make a connection to the proxy server"
+            
+            # Note that we will try to connect to the proxy server instead of
+            # our target host. It also needs to store the information about
+            # the target host so that we can use that information in
+            # send_request() call.
+
+            self.__target_host = host
+            import httplib
+            return httplib.HTTP('%s:%d' % (self.__host, self.__port))
+
+        def send_content(self, connection, request_body):
+            """Send the content of the XML-RPC request to the server.
+
+            This method override the default send_content. If the proxy
+            username and password has been configured, then we will place an
+            extra header here so the connection can be authenticated.
+
+            """
+            if (self.__username is not None) and (self.__password is not None):
+                import base64
+                import urllib
+                auth_token = '%s:%s' % (self.__username, self.__password)
+                auth_token = base64.encodestring(urllib.unquote(auth_token))
+                auth_token = auth_token.strip()
+                connection.putheader("Proxy-Authorization", 'Basic '+auth_token)
+
+            xmlrpclib.Transport.send_content(self, connection, request_body)
+
+        def send_request(self, connection, handler, request_body):
+            handler = 'http://' + self.__target_host + handler
+            connection.putrequest("POST", handler)
+
 
 def decodeISO8601(date):
     # Translate an ISO8601 date to the tuple format used in Python's time
@@ -493,7 +584,6 @@ def decodeISO8601(date):
         result = map(int, result)
         result += [0, 0, -1]
         return tuple(result)
-
 
 def parseBoolean(value):
     # In the MovableType 2.5.x XML-RPC specification, boolean values are real
@@ -604,7 +694,6 @@ def parsePost():
 
     return post, cts, publish
 
-
 def printBoolean(val):
     if isinstance(val, xmlrpclib.Boolean):
         return val and '1' or '0'
@@ -614,7 +703,6 @@ def printBoolean(val):
         return val == '1' and '1' or '0'
 
     assert(0), 'Invalid boolean value: %s' % val
-
 
 def printPost(post, cts):
     if post.has_key('title'):
@@ -663,7 +751,6 @@ def printPost(post, cts):
         print 'EXCERPT:'
         print post['mt_excerpt']
 
-
 def printTable(table, heading=1):
     # We have to work out the maximum width first.
     if not table:
@@ -687,7 +774,6 @@ def printTable(table, heading=1):
             print border
             hdrs = 1
     print border
-
 
 def main(args):
     import getopt
@@ -745,10 +831,7 @@ def main(args):
         print >>sys.stderr, __doc__
         sys.exit(1)
 
-    try:
-        global xmlrpclib
-        import xmlrpclib
-    except ImportError:
+    if xmlrpclib is None:
         print >>sys.stderr, '''Error: Cannot import "xmlrpclib" module.
 
 You should either upgrade to Python 2.2+, or download and install the 
