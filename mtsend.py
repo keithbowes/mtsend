@@ -1,5 +1,148 @@
 #!/usr/bin/env python
 
+# Command Line Movable Type Client
+# ================================
+# This application allows you to edit/post entries on a Movable Type site via
+# XML-RPC calls. For more information about this script, visit:
+#
+#   http://scott.yang.id.au/archives/000092.php
+#
+# HISTORY
+# =======
+#
+# 0.5 - 14 Oct 2003
+# + Remove the support of MT2.5. Use the older version of mtsend.py if you
+#   need these supports.
+# + Support KEYWORDS and PING into the header.
+# + Add new functionalities provided by MT2.6's backend.
+#   - List out trackback pings of a post.
+#   - List out text filters installed.
+# + Documentation in the source code.
+#
+# 0.4 - 10 Mar 2003
+# + Support the new metaWeblog.newMediaObject() function via mtsend.py -U
+#   filename, i.e. you can now upload text/binary files to your
+#   MovableType site via mtsend.py!
+# + Use mt.getRecentPostTitles() function in MT2.6 to save bandwidth.
+# + Some bug fixes due to some inconsistency between MT2.6 and MT2.5.
+# 
+# 0.3 - 3 Jan 2003
+# + Make it to work on Python 2.1. "xmlrpclib" needs to be downloaded
+#   separately. It is tested
+#   on Python 2.1.2 for Windows.
+#   
+# 0.2 - 30 Dec 2002
+# + Fixed a bug in saving the post entry back, where new line characters
+#   are stripped.
+#
+# 0.1 - 30 Dec 2002
+# + Initial public version
+#
+#
+# CONFIGURATION FILE
+# ==================
+# Configuration file for mtsend.py is in the style of Windows INI files, which
+# consist of sections and key/value pairs. There are 3 main sections - global,
+# site and blog.
+#
+# Global Section:
+#   There is only one key/value in this section, and it is used to note the
+#   default blog alias to use if it is not provided on the command line.
+#   For example:
+#
+#     [global]
+#     default=example
+#
+#   It shows the default blog alias will be 'example'
+#
+# Site Section:
+#   You can have multiple site sections for each Movable Type installation
+#   you have access to. The section name will be [site-"site name"]. For
+#   example:
+#     
+#     [site-test]
+#     url=http://testdomain.com/mtinstall/mt-xmlrpc.cgi
+#     username=foo
+#     password=bar
+#
+#   It defines site "test" with the URL to the MovableType's XML-RPC CGI
+#   script, and the username/password used to access that site.
+#
+# Blog Section:
+#   You can have multiple blog sections for each Movable Type blogs you have
+#   on the sites you have access to. Blogs are distinguished by their 'alias',
+#   which you can select in the command line using -a. The section name for
+#   this blog will be [blog-"blog alias"]. For example,
+#
+#     [blog-example]
+#     site=test
+#     blogid=3
+#
+#   Each blog section must have "site", which indicates the site this blog
+#   belongs to, so that mtsend would be able to locate site-related
+#   information from the configuration file. It also needs the blog ID on that
+#   site. To find out all the blog IDs, you can use -B "site name" to print
+#   out the list.
+#
+#
+# POST FORMAT
+# ===========
+# When editing or posting via mtsend, the post needs to be in a specific
+# format. The format is very close to Movable Type's import/export format,
+# which is documented here:
+#
+#   http://www.movabletype.org/docs/mtmanual_importing.html
+#
+# It consists of a header and body. For example:
+#
+#   [header1]: [value1]
+#   [header2]: [value2]
+#   [header3]: [value3]
+#   -----
+#   BODY:
+#   ....
+#   -----
+#   EXTENDED BODY:
+#   ....
+#   -----
+#   EXCERPT:
+#   ....
+#
+# Extended body and excerpt are optional in a post. Most header elements are
+# optional when you are creating a new post. If they do not provide a value,
+# then the default value configured by Movable Type will be used.
+#
+# These are the header keys/values:
+#
+#   TITLE:
+#     The title of this post.
+#     
+#   ALLOW COMMENTS: 0/1 
+#     Whether this post allows comments.
+#
+#   ALLOW PINGS: 0/1
+#     Whether this post allows trackback pings.
+#
+#   CATEGORY:
+#     The category associated with this post entry. You can have multiple
+#     CATEGORY in the header. The first CATEGORY automatically becomes the
+#     primary category, if PRIMARY CATEGORY is not specified.
+#
+#   CONVERT BREAKS: 0/1/customised text filter name.
+#     Whether the line break will be automatically converted into <br/> and
+#     <p/> when posted. It can also be the name of an installed text filer. To
+#     get the list of installed text filter, use mtsend.py -T
+#
+#   DATE: dd/mm/yyyy HH:MM:SS [AM|PM]
+#     The post date. It might not work if you are creating a new post.
+#
+#   KEYWORDS:
+#     The keywords of your post.
+#
+#   PING:
+#     The URL to be pinged during posting. You can have multiple PING in the
+#     header.
+
 '''\
 Usage: 
     mtsend.py [action] [options]
@@ -18,9 +161,11 @@ Actions:
     -L num      List the most recent [num] posts.
     -N          Posting a new blog. The entry, in the Movable Type
                 import/export format, is read from the standard input.
+    -P postid   List out trackback pings to this post.
     -R postid   Rebuild all the static files related to this entry.
+    -T          List out the text filters installed on the server.
     -U filename Upload a file, reading from standard input, to the blog site,
-                with destination filename provided. (MT>=2.6)
+                with destination filename provided.
     -V          Show version information.
 
 Options:
@@ -31,53 +176,15 @@ Options:
     -h          Display this help message.
     -q          Decrease verbose level.
     -v          Increase verbose level. Message goes to standard error.
+
+For more information, please visit:
+    http://scott.yang.id.au/archives/000092.php
 '''
 
-xtra_help = '''\
-Configuration File:
-    Default configuration file is located at $HOME/.mtsendrc, and it is in the
-    similar format of typical Windows INI files. Here is a sample option file:
-
-        [global]
-        default=mysite
-
-        [site-mysite]
-        url=http://myhost.mydomain/mt/mt-xmlrpc.cgi
-        username=myusername
-        password=mypassword
-        mtversion=2.6.3
-
-        [blog-myblog]
-        site=mysite
-        blogid=3
-
-        [blog-anotherblog]
-        site=mysite
-        blogid=4
-
-    In this configuration, two blog aliases have been defined - "myblog" and
-    "anotherblog". Both blogs use site configuration "mysite", where this
-    script can find corresponding URL/username/password. In the "global"
-    section, it defines the default blog alias, which will be used when -a
-    command line option is not used.
-
-Input/Ouput File Format
-    The input file for -N and -E action is in the same format as the output
-    file with -G action. Therefore, you can use -G to retrieve the blog entry,
-    edit it, and then use "-E -" to save the entry back to Movable Type.
-
-    The file type is very similar to Movable Type's import/export file format,
-    except that you can only have one blog entry per file. Moreover, you
-    cannot have traceback/comment in the input/output file, as they are not
-    supported by the MT's XML-RPC interface. For more information, check the
-    Movable Type Import Format document:
-
-        http://www.movabletype.org/docs/mtimport.html
-
-'''
-
-__author__  = 'Scott Yang'
-__version__ = 'Version 0.4'
+__author__      = 'Scott Yang <scotty@yang.id.au>'
+__copyright__   = 'Copyright (c) 2002-2003 Scott Yang'
+__date__        = '2003/10/14'
+__version__     = 'Version 0.5'
 
 import ConfigParser
 import os
@@ -96,19 +203,6 @@ class MT:
     def __getattr__(self, attr):
         if attr == 'blogid':
             return self._getBlog('blogid')
-        elif attr == 'mtversion':
-            # Try to find out the MovableType version of the site. In the
-            # configuration file, under the site sections, "mtversion" option
-            # can be specified. If it does not exist, then it will assume the
-            # site is MovableType 2.5.x (which might be the minimum supported
-            # by mtsend.py
-            import re
-            mtversion = self._getSite('mtversion', '2.5')
-            mtversion = re.match(r'^\d+\.\d+', mtversion)
-            if mtversion:
-                return float(mtversion.group(0))
-            else:
-                return 2.5
         elif attr == 'password':
             return self._getSite('password')
         elif attr == 'username':
@@ -139,11 +233,12 @@ class MT:
         result = [['ID', 'Category Name']]
         for cat in cts:
             result.append([cat['categoryId'], cat['categoryName']])
+        result.sort(lambda x, y: cmp(x[1], y[1]))
         printTable(result)
 
     def execute_e(self):
         self.log(1, 'Parsing post entry from standard input...')
-        post, cts, publish = parsePost(self.mtversion)
+        post, cts, publish = parsePost()
 
         postid = self.modeopt
         if self.modeopt == '-':
@@ -198,14 +293,7 @@ class MT:
         except:
             num = 5
 
-        # For MT2.6, a bandwidth-saving version "mt.getRecentPostTitles()"
-        # should be used. However, we should still keep the compatibility with
-        # MT2.5 by checking the version setting.
-        if self.mtversion >= 2.6:
-            func = srv.mt.getRecentPostTitles
-        else:
-            func = srv.mt.getRecentPosts
-
+        func  = srv.mt.getRecentPostTitles
         posts = func(self.blogid, self.username, self.password, num)
 
         self.log(1, 'Retrieve "%d" recent posts...', num)
@@ -222,7 +310,7 @@ class MT:
 
     def execute_n(self):
         self.log(1, 'Parsing post entry from standard input...')
-        post, cts, publish = parsePost(self.mtversion)
+        post, cts, publish = parsePost()
         srv = self.getRPCServer()
 
         self.log(1, 'Saving new post entry...')
@@ -242,16 +330,32 @@ class MT:
 
         print postid
     
+    def execute_p(self):
+        srv = self.getRPCServer()
+        result = [[
+            val['pingTitle'],
+            val['pingURL'],
+            val['pingIP'],
+        ] for val in srv.mt.getTrackbackPings(self.modeopt)]
+
+        result.insert(0, ['Title', 'URL', 'IP'])
+        printTable(result)
+
     def execute_r(self):
         srv = self.getRPCServer()
-        self.log(1, 'Rebuild post entry "%s"...', self.modeopt)
         srv.mt.publishPost(self.modeopt, self.username, self.password)
 
+    def execute_t(self):
+        srv = self.getRPCServer()
+        result = []
+        for val in srv.mt.supportedTextFilters():
+            result.append([val['key'], val['label']])
+
+        result.sort()
+        result.insert(0, ['Key', 'Label'])
+        printTable(result)
+
     def execute_u(self):
-        if self.mtversion < 2.6:
-            raise Exception, \
-                'File uploading requires MovableType 2.6+ on the server side.'
-        
         srv = self.getRPCServer()
         bin = sys.stdin.read()
 
@@ -291,6 +395,12 @@ class MT:
             self.modeopt = modeopt
         else:
             raise Exception, 'Conflicting operational mode.'
+
+    def _detectMTVersion(self):
+        # FIXME: We can use XML-RPC introspection to check what methods the
+        # server supports. It can then help us to see what version MT is
+        # installed on the server side.
+        return 2.5
 
     def _fixCategories(self, cts):
         if len(cts) > 0:
@@ -385,23 +495,23 @@ def decodeISO8601(date):
         return tuple(result)
 
 
-def parseBoolean(mtversion, value):
+def parseBoolean(value):
     # In the MovableType 2.5.x XML-RPC specification, boolean values are real
     # XML-RPC boolean objects. Whereas in MovableType 2.6.x, it changes to
     # simple integer values.
-    if mtversion >= 2.6:
-        return value == '1' and 1 or 0
-    else:
-        return xmlrpclib.Boolean(value == '1')
-
-    
-def parsePost(mtversion=2.5):
+    return value == '1' and 1 or 0
+ 
+def parsePost():
     state = 0
     code = None
     post = {}
     post['dateCreated'] = xmlrpclib.DateTime(time.strftime('%Y%m%dT%H:%M:%S'))
     cts = []
     publish = xmlrpclib.Boolean(0)
+
+    import re
+    re_date = r'^(\d{2})/(\d{2})/(\d{4}) (\d{2}):(\d{2}):(\d{2})( ([AP]M))?$'
+    re_date = re.compile(re_date).search
 
     while 1:
         line = sys.stdin.readline()
@@ -422,9 +532,7 @@ def parsePost(mtversion=2.5):
                     post['title'] = val
                     
                 elif key == 'DATE':
-                    import re
-                    regex = r'^(\d{2})/(\d{2})/(\d{4}) (\d{2}):(\d{2}):(\d{2})( ([AP]M))?$'
-                    match = re.search(regex, val.upper())
+                    match = re_date(val.upper())
                     if match is None:
                         raise Exception, 'Date value "%s" is invalid.' % val
                     result = map(int, match.group(1, 2, 3, 4, 5, 6))
@@ -444,36 +552,29 @@ def parsePost(mtversion=2.5):
                         
                     val = time.strftime('%Y%m%dT%H:%M:%S', tuple(result))
                     post['dateCreated'] = xmlrpclib.DateTime(val)
-                    
                 elif key == 'STATUS':
                     publish = xmlrpclib.Boolean(val.lower() == 'publish')
-
                 elif key == 'ALLOW COMMENTS':
-                    post['mt_allow_comments'] = parseBoolean(mtversion, val)
-        
+                    post['mt_allow_comments'] = parseBoolean(val)
                 elif key == 'ALLOW PINGS':
-                    post['mt_allow_pings'] = parseBoolean(mtversion, val)
-
+                    post['mt_allow_pings'] = parseBoolean(val)
+                elif key == 'PING':
+                    try:
+                        post['mt_tb_ping_urls'].append(val)
+                    except KeyError:
+                        post['mt_tb_ping_urls'] = [val]
                 elif key == 'CONVERT BREAKS':
                     # MT2.6 - mt_convert_breaks has changed its value from
-                    # XML-RPC boolean to string. Probably in preparation of
-                    # supporting multiple transformattion backend.
-                    if mtversion < 2.6:
-                        val = xmlrpclib.Boolean(val == '1')
-                    else:
-                        val = (val == '1') and '1' or '0'
-                    
+                    # XML-RPC boolean to string.
                     post['mt_convert_breaks'] = val
- 
                 elif key == 'POSTID':
                     post['postid'] = val
- 
                 elif key == 'PRIMARY CATEGORY':
                     cts.insert(0, val.lower())
-
                 elif key == 'CATEGORY':
                     cts.append(val.lower())
-
+                elif key == 'KEYWORDS':
+                    post['mt_keywords'] = val
                 else:
                     raise Exception, 'Invalid field key: %s' % key
 
@@ -538,14 +639,10 @@ def printPost(post, cts):
         print 'ALLOW PINGS:', printBoolean(post['mt_allow_pings'])
     
     if post.has_key('mt_convert_breaks'):
-        # MT2.6 - mt_convert_breaks has changed its value from XML-RPC boolean
-        # to string. Probably in preparation of supporting multiple
-        # transformattion backend.
-        val = post['mt_convert_breaks']
-        if isinstance(val, xmlrpclib.Boolean):
-            val = val and '1' or '0'
+        print 'CONVERT BREAKS:', post['mt_convert_breaks']
 
-        print 'CONVERT BREAKS:', val
+    if post.has_key('mt_keywords'):
+        print 'KEYWORDS:', post['mt_keywords']
 
     # We will also print the postid so that it can be verified later.
     print 'POSTID:', post['postid']
@@ -596,7 +693,7 @@ def main(args):
     import getopt
     import socket
     try:
-        opts, args = getopt.getopt(args, 'a:B:Cc:E:G:hL:NqR:U:vV')
+        opts, args = getopt.getopt(args, 'a:B:Cc:E:G:hL:NP:qR:TU:vV')
     except getopt.GetoptError, ex:
         print >>sys.stderr, 'Error: '+str(ex)
 	print >>sys.stderr, __doc__
@@ -620,16 +717,19 @@ def main(args):
             mt.setMode('g', a)
         elif o == '-h':
             print >>sys.stderr, __doc__
-            print >>sys.stderr, xtra_help
             sys.exit(0)
         elif o == '-L':
             mt.setMode('l', a)
         elif o == '-N':
             mt.setMode('n')
+        elif o == '-P':
+            mt.setMode('p', a)
         elif o == '-q':
             mt.verbose -= 1
         elif o == '-R':
             mt.setMode('r', a)
+        elif o == '-T':
+            mt.setMode('t')
         elif o == '-U':
             mt.setMode('u', a)
         elif o == '-v':
@@ -666,7 +766,6 @@ You should either upgrade to Python 2.2+, or download and install the
             raise
         else:
             print >>sys.stderr, 'Error:', ex
-
 
 if __name__ == '__main__':
     main(sys.argv[1:])
