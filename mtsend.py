@@ -5,10 +5,14 @@
 # This application allows you to edit/post entries on a Movable Type site via
 # XML-RPC calls. For more information about this script, visit:
 #
-#   http://scott.yang.id.au/archives/000092.php
+#   http://scott.yang.id.au/2002/12/mtsendpy/
 #
 # HISTORY
 # =======
+#
+# 1.0 - 20 May 2005
+# + time module related fix for Python 2.4.
+# + Ensure all cells passed to printTable() function are in string-type.
 #
 # 0.6.1 - 6 Apr 2004
 # + Properly handles mt_allow_comments for MT2.6 servers.
@@ -192,9 +196,9 @@ For more information, please visit:
 '''
 
 __author__      = 'Scott Yang <scotty@yang.id.au>'
-__copyright__   = 'Copyright (c) 2002-2004 Scott Yang'
-__date__        = '2004/04/01'
-__version__     = 'Version 0.6'
+__copyright__   = 'Copyright (c) 2002-2005 Scott Yang'
+__date__        = '2005/05/20'
+__version__     = 'Version 1.0'
 
 import ConfigParser
 import os
@@ -568,21 +572,22 @@ def decodeISO8601(date):
     # Translate an ISO8601 date to the tuple format used in Python's time
     # module.
     import re
-    regex = r'^(\d{4})(\d{2})(\d{2})T(\d{2}):(\d{2}):(\d{2})$'
+    regex = r'^(\d{4})(\d{2})(\d{2})T(\d{2}):(\d{2}):(\d{2})'
     match = re.search(regex, str(date))
     if not match:
         raise Exception, '"%s" is not a correct ISO8601 date format' % date
     else:
         result = match.group(1, 2, 3, 4, 5, 6)
         result = map(int, result)
-        result += [0, 0, -1]
+        result += [0, 1, -1]
         return tuple(result)
+
 
 def parsePost():
     state = 0
     code = None
     post = {}
-    post['dateCreated'] = xmlrpclib.DateTime(time.strftime('%Y%m%dT%H:%M:%S'))
+    #post['dateCreated'] = xmlrpclib.DateTime(time.strftime('%Y%m%dT%H:%M:%S'))
     cts = []
     publish = xmlrpclib.Boolean(0)
 
@@ -614,18 +619,21 @@ def parsePost():
                         raise Exception, 'Date value "%s" is invalid.' % val
                     result = map(int, match.group(1, 2, 3, 4, 5, 6))
                     try:
-                        pm = match.group(8) == 'PM'
+                        pm = match.group(8)
                     except IndexError:
                         pass
                     else:
-                        if pm:
+                        if pm == 'PM':
                             if result[3] != 12:
                                 result[3] += 12
-                        elif result[3] == 12:
-                            result[3] = 0
+                        elif pm == 'AM':
+                            if result[3] == 12:
+                                result[3] = 0
+                        elif pm is not None:
+                            raise Exception, 'Expect (AM|PM) get "%s"' % pm
 
                     result[0:3] = [result[2], result[0], result[1]]
-                    result += [0, 0, -1]
+                    result += [0, 1, -1]
                         
                     val = time.strftime('%Y%m%dT%H:%M:%S', tuple(result))
                     post['dateCreated'] = xmlrpclib.DateTime(val)
@@ -685,6 +693,7 @@ def parsePost():
 
     return post, cts, publish
 
+
 def printPost(post, cts):
     if post.has_key('title'):
         print 'TITLE:', post['title']
@@ -732,6 +741,7 @@ def printPost(post, cts):
         print 'EXCERPT:'
         print post['mt_excerpt']
 
+
 def printTable(table, heading=1):
     # We have to work out the maximum width first.
     if not table:
@@ -740,6 +750,11 @@ def printTable(table, heading=1):
     widths = [0] * len(table[0])
     for row in table:
         for idx, cell in zip(range(len(row)), row):
+            if isinstance(cell, unicode):
+                cell = cell.encode(DEFAULT_ENCODING)
+            elif not isinstance(cell, str):
+                cell = str(cell)
+            row[idx] = cell
             if len(cell) > widths[idx]:
                 widths[idx] = len(cell)
 
@@ -755,6 +770,10 @@ def printTable(table, heading=1):
             print border
             hdrs = 1
     print border
+
+
+DEFAULT_ENCODING = 'utf-8'
+
 
 def main(args):
     import getopt
