@@ -10,9 +10,12 @@
 # HISTORY
 # =======
 #
+# 1.1 - 19 Nov 2005
+# + Add SSL support for proxy.
+#
 # 1.0 - 20 May 2005
 # + time module related fix for Python 2.4.
-# + Ensure all cells passed to printTable() function are in string-type.
+# + Ensure all cells passed to print_table() function are in string-type.
 #
 # 0.6.1 - 6 Apr 2004
 # + Properly handles mt_allow_comments for MT2.6 servers.
@@ -192,20 +195,24 @@ Options:
     -v          Increase verbose level. Message goes to standard error.
 
 For more information, please visit:
-    http://scott.yang.id.au/archives/000092.php
+    http://scott.yang.id.au/2002/12/mtsendpy/
 '''
 
 __author__      = 'Scott Yang <scotty@yang.id.au>'
 __copyright__   = 'Copyright (c) 2002-2005 Scott Yang'
-__date__        = '2005/05/20'
-__version__     = 'Version 1.0'
+__date__        = '2005-11-19'
+__version__     = '1.1'
 
 import ConfigParser
+import httplib
 import os
+import re
 import sys
 import time
+import urllib
 
-class MT:
+
+class MTSend(object):
     def __init__(self):
         self.alias = None
         self.input = None
@@ -213,16 +220,8 @@ class MT:
         self.mode = None
         self.verbose = 1
         self.rpcsrv = None
-
-    def __getattr__(self, attr):
-        if attr == 'blogid':
-            return self._getBlog('blogid')
-        elif attr == 'password':
-            return self._getSite('password')
-        elif attr == 'username':
-            return self._getSite('username')
-        else:
-            raise AttributeError, attr
+        self.site = None
+        self.modeopt = None
 
     def execute(self):
         try:
@@ -235,25 +234,27 @@ class MT:
     def execute_b(self):
         self.site = self.modeopt
         srv = self.getRPCServer()
-        blogs = srv.blogger.getUsersBlogs('', self.username, self.password)
+        blogs = srv.blogger.getUsersBlogs('', self.get_username(), 
+            self.get_password())
         result = [['ID', 'Blog Name', 'URL']]
-        for b in blogs:
-            result.append([b['blogid'], b['blogName'], b['url']])
-        printTable(result)
+        for blog in blogs:
+            result.append([blog['blogid'], blog['blogName'], blog['url']])
+        print_table(result)
 
     def execute_c(self):
         srv = self.getRPCServer()
-        cts = srv.mt.getCategoryList(self.blogid, self.username, self.password)
+        cts = srv.mt.getCategoryList(self.get_blogid(), self.get_username(), 
+            self.get_password())
         result = []
         for cat in cts:
             result.append([cat['categoryId'], cat['categoryName']])
         result.sort(lambda x, y: cmp(x[1], y[1]))
         result[0:0] = [['ID', 'Category Name']]
-        printTable(result)
+        print_table(result)
 
     def execute_e(self):
         self.log(1, 'Parsing post entry from standard input...')
-        post, cts, publish = parsePost()
+        post, cts, publish = parse_post()
 
         postid = self.modeopt
         if self.modeopt == '-':
@@ -269,21 +270,22 @@ class MT:
 
         srv = self.getRPCServer()
         self.log(1, 'Saving post entry "%s"...', postid)
-        srv.metaWeblog.editPost(postid, self.username, 
-                                self.password, post, publish)
+        srv.metaWeblog.editPost(postid, self.get_username(), 
+            self.get_password(), post, publish)
 
         cts = self._fixCategories(cts)
         if len(cts) > 0:
             self.log(1, 'Add categories "%s" to post entry "%s"...',
-                ','.join([x['categoryId'] for x in cts]), postid)
-            srv.mt.setPostCategories(postid, self.username, self.password, cts)
+                ','.join([cat['categoryId'] for cat in cts]), postid)
+            srv.mt.setPostCategories(postid, self.get_username(),
+                self.get_password(), cts)
  
     def execute_g(self):
         srv = self.getRPCServer()
         if self.modeopt.lower() == '-':
             self.log(1, 'Retrieve most recent post entry...')
-            post = srv.metaWeblog.getRecentPosts\
-                ( self.blogid, self.username, self.password, 1 )
+            post = srv.metaWeblog.getRecentPosts(self.get_blogid(), 
+                self.get_username(), self.get_password(), 1)
             if len(post) > 0:
                 post = post[0]
             else:
@@ -291,15 +293,15 @@ class MT:
         else:
             self.log(1, 'Retrieve post entry "%s"...', self.modeopt)
             post = srv.metaWeblog.getPost\
-                ( self.modeopt, self.username, self.password )
+                ( self.modeopt, self.get_username(), self.get_password() )
 
         # Get the categories of this post.
         self.log(1, 'Retrieve categories for post entry "%s"...', 
                  post['postid'])
-        cts = srv.mt.getPostCategories\
-            ( post['postid'], self.username, self.password )
+        cts = srv.mt.getPostCategories(post['postid'], self.get_username(), 
+            self.get_password())
 
-        printPost(post, cts)
+        print_post(post, cts)
 
     def execute_l(self):
         srv = self.getRPCServer()
@@ -309,39 +311,45 @@ class MT:
             num = 5
 
         func  = srv.mt.getRecentPostTitles
-        posts = func(self.blogid, self.username, self.password, num)
+        posts = func(self.get_blogid(), self.get_username(), 
+            self.get_password(), num)
 
         self.log(1, 'Retrieve "%d" recent posts...', num)
         result = [['ID', 'Date', 'Title']]
-        for p in posts:
+        for post in posts:
             result.append([
-                p['postid'],
+                post['postid'],
                 time.strftime('%Y-%m-%d %H:%M:%S', 
-                              decodeISO8601(p['dateCreated'].value)),
-                p['title']
+                    decode_iso8601(post['dateCreated'].value)),
+                post['title']
             ])
 
-        printTable(result)
+        print_table(result)
 
     def execute_n(self):
         self.log(1, 'Parsing post entry from standard input...')
-        post, cts, publish = parsePost()
+        post, cts, publish = parse_post()
         srv = self.getRPCServer()
 
         self.log(1, 'Saving new post entry...')
-        postid = srv.metaWeblog.newPost(self.blogid, self.username, 
-                                        self.password, post, publish)
+        postid = srv.metaWeblog.newPost(self.get_blogid(), self.get_username(), 
+            self.get_password(), post, publish)
 
         cts = self._fixCategories(cts)
         if len(cts) > 0:
             self.log(1, 'Add categories "%s" to post entry "%s"...',
-                     ','.join([x['categoryId'] for x in cts]), postid)
-            srv.mt.setPostCategories(postid, self.username, self.password, cts)
+                     ','.join([cat['categoryId'] for cat in cts]), postid)
+            srv.mt.setPostCategories(postid, self.get_username(), 
+                self.get_password(), cts)
 
         # Somehow under MovableType 2.5, the new post will not trigger a
         # rebuild. Therefore we will force a rebuild here.
-        self.modeopt = postid
-        self.execute_r()
+        #
+        # XXX: Apparently this behaviour no longer exists in later version of
+        # MT.
+        if False:
+            self.modeopt = postid
+            self.execute_r()
 
         print postid
     
@@ -354,11 +362,12 @@ class MT:
         ] for val in srv.mt.getTrackbackPings(self.modeopt)]
 
         result.insert(0, ['Title', 'URL', 'IP'])
-        printTable(result)
+        print_table(result)
 
     def execute_r(self):
         srv = self.getRPCServer()
-        srv.mt.publishPost(self.modeopt, self.username, self.password)
+        srv.mt.publishPost(self.modeopt, self.get_username(), 
+            self.get_password())
 
     def execute_t(self):
         srv = self.getRPCServer()
@@ -368,7 +377,7 @@ class MT:
 
         result.sort()
         result.insert(0, ['Key', 'Label'])
-        printTable(result)
+        print_table(result)
 
     def execute_u(self):
         srv = self.getRPCServer()
@@ -380,8 +389,8 @@ class MT:
             'bits': xmlrpclib.Binary(bin),
         }
         
-        result = srv.metaWeblog.newMediaObject(self.blogid, self.username, 
-            self.password, media_object)
+        result = srv.metaWeblog.newMediaObject(self.get_blogid(), 
+            self.get_username(), self.get_password(), media_object)
 
         print result['url']
 
@@ -389,31 +398,22 @@ class MT:
         if self.rpcsrv is not None:
             return self.rpcsrv
 
-        transport = self.getRPCTransport()
+        httptype = urllib.splittype(self._getSite('url'))[0]
+        transport = get_rpc_transport(httptype)
 
         # Default we will use 'UTF-8' encoding, if the site encoding option is
         # not provided.
         return xmlrpclib.ServerProxy(self._getSite('url'), transport, 
             self._getSite('encoding', 'UTF-8'))
 
-    def getRPCTransport(self):
-        # Detect whether we need to use 'ProxyTranspory'. Proxy detection is
-        # done using HTTP_PROXY or http_proxy environment variable.
-        proxy = os.environ.get('HTTP_PROXY') or os.environ.get('http_proxy')
-        if proxy:
-            import re
-            match = re.match(r'^(http://)?(([^:@]+)(:([^@]*))?@)?([^:]+):(\d+)',
-                proxy)
+    def get_blogid(self):
+        return self._getBlog('blogid')
 
-            if match:
-                username = match.group(3) or None
-                password = match.group(5) or None
-                hostname = match.group(6)
-                bindport = int(match.group(7))
+    def get_password(self):
+        return self._getSite('password')
 
-                return ProxyTransport(hostname, bindport, username, password)
-
-        return xmlrpclib.Transport()
+    def get_username(self):
+        return self._getSite('username')
 
     def loadConfig(self, config):
         if config is None:
@@ -428,7 +428,7 @@ class MT:
 
     def log(self, level, msg, *fmt):
         if self.verbose >= level:
-            print >>sys.stderr, msg % fmt
+            print >> sys.stderr, msg % fmt
 
     def setMode(self, mode, modeopt=None):
         if self.mode is None:
@@ -443,8 +443,8 @@ class MT:
             new = []
 
             self.log(1, 'Retrieve available categories...')
-            old = srv.mt.getCategoryList(self.blogid, self.username, 
-                                         self.password)
+            old = srv.mt.getCategoryList(self.get_blogid(), 
+                self.get_username(), self.get_password())
             ctsmap = {}
             for cat in old:
                 ctsmap[cat['categoryName'].lower()] = cat['categoryId']
@@ -493,13 +493,10 @@ class MT:
 
     def _getSite(self, option, default=None):
         try:
-            try:
-                site = self.site
-            except AttributeError:
-                site = self._getBlog('site')
-                self.site = site
+            if self.site is None:
+                self.site = self._getBlog('site')
                 
-            return self.config.get('site-%s' % site, option)
+            return self.config.get('site-%s' % self.site, option)
         except (ConfigParser.Error, KeyError):
             if default is not None:
                 return default
@@ -513,6 +510,12 @@ except ImportError:
     # ignore the error here.
     xmlrpclib = None
 else:
+    class HTTP(httplib.HTTP):
+        def __init__(self, conn):
+            httplib.HTTP.__init__(self)
+            self._setup(conn)
+
+
     class ProxyTransport(xmlrpclib.Transport):
         """Transport class for the XMLRPC.
 
@@ -527,11 +530,21 @@ else:
 
         """
 
-        def __init__(self, host, port=3128, username=None, password=None):
+        def __init__(self, host, port=3128, username=None, password=None, 
+                ssl=False):
             self.__host = host
             self.__port = port
             self.__username = username
             self.__password = password
+            self.__ssl = ssl
+            self.__target_host = None
+
+        def get_authentication(self):
+            import base64
+            auth_token = '%s:%s' % (self.__username, self.__password)
+            auth_token = base64.encodestring(urllib.unquote(auth_token))
+            auth_token = auth_token.strip()
+            return 'Basic '+auth_token
 
         def make_connection(self, host):
             "Make a connection to the proxy server"
@@ -541,9 +554,36 @@ else:
             # the target host so that we can use that information in
             # send_request() call.
 
-            self.__target_host = host
-            import httplib
-            return httplib.HTTP('%s:%d' % (self.__host, self.__port))
+            import socket
+
+            if self.__ssl:
+                # XXX: Code pieces taken from
+                # http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/301740
+                header = [
+                    'CONNECT %s:443 HTTP/1.0' % host,
+                    'User-Agent: mtsend.py/%s' % __version__,
+                ]
+                if self.__username and self.__password:
+                    header.append('Proxy-Authentication: %s' %
+                        self.get_authentication())
+                proxy = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                proxy.connect((self.__host, self.__port))
+                proxy.sendall('\r\n'.join(header)+'\r\n\r\n')
+
+                response = proxy.recv(8192) 
+                status = response.split()[1]
+                if status != '200':
+                    print response
+                    raise Exception, 'Invalid CONNECT response "%s"' % status
+
+                ssl = socket.ssl(proxy, None, None)
+                sock = httplib.FakeSocket(proxy, ssl)
+                conn = httplib.HTTPConnection('localhost')
+                conn.sock = sock
+                return HTTP(conn)
+            else:
+                self.__target_host = host
+                return httplib.HTTP('%s:%d' % (self.__host, self.__port))
 
         def send_content(self, connection, request_body):
             """Send the content of the XML-RPC request to the server.
@@ -554,24 +594,20 @@ else:
 
             """
             if (self.__username is not None) and (self.__password is not None):
-                import base64
-                import urllib
-                auth_token = '%s:%s' % (self.__username, self.__password)
-                auth_token = base64.encodestring(urllib.unquote(auth_token))
-                auth_token = auth_token.strip()
-                connection.putheader("Proxy-Authorization", 'Basic '+auth_token)
+                connection.putheader("Proxy-Authorization", 
+                    self.get_authentication())
 
             xmlrpclib.Transport.send_content(self, connection, request_body)
 
         def send_request(self, connection, handler, request_body):
-            handler = 'http://' + self.__target_host + handler
+            if not self.__ssl:
+                handler = 'http://' + self.__target_host + handler
             connection.putrequest("POST", handler)
 
 
-def decodeISO8601(date):
+def decode_iso8601(date):
     # Translate an ISO8601 date to the tuple format used in Python's time
     # module.
-    import re
     regex = r'^(\d{4})(\d{2})(\d{2})T(\d{2}):(\d{2}):(\d{2})'
     match = re.search(regex, str(date))
     if not match:
@@ -583,23 +619,63 @@ def decodeISO8601(date):
         return tuple(result)
 
 
-def parsePost():
+def get_rpc_transport(httptype):
+    # Detect whether we need to use 'ProxyTranspory'. Proxy detection is
+    # done using HTTP_PROXY or http_proxy environment variable.
+    proxy = os.environ.get('HTTP_PROXY') or os.environ.get('http_proxy')
+    if proxy:
+        match = re.match(r'^(http://)?(([^:@]+)(:([^@]*))?@)?([^:]+):(\d+)',
+            proxy)
+
+        if match:
+            username = match.group(3) or None
+            password = match.group(5) or None
+            hostname = match.group(6)
+            bindport = int(match.group(7))
+
+            return ProxyTransport(hostname, bindport, username, password,
+                httptype=='https')
+
+    # Letting ServerProxy to pick the best suitable transport
+    return None
+
+
+re_date = r'^(\d{2})/(\d{2})/(\d{4}) (\d{2}):(\d{2}):(\d{2})( ([AP]M))?$'
+re_date = re.compile(re_date).search
+
+def parse_date(val):
+    match = re_date(val.upper())
+    if match is None:
+        raise Exception, 'Date value "%s" is invalid.' % val
+    result = map(int, match.group(1, 2, 3, 4, 5, 6))
+    try:
+        ampm = match.group(8)
+    except IndexError:
+        pass
+    else:
+        if ampm == 'PM':
+            if result[3] != 12:
+                result[3] += 12
+        elif ampm == 'AM':
+            if result[3] == 12:
+                result[3] = 0
+        elif ampm is not None:
+            raise Exception, 'Expect (AM|PM) get "%s"' % ampm
+
+    result[0:3] = [result[2], result[0], result[1]]
+    result += [0, 1, -1]
+
+    return tuple(result)
+
+
+def parse_post():
     state = 0
     code = None
     post = {}
-    #post['dateCreated'] = xmlrpclib.DateTime(time.strftime('%Y%m%dT%H:%M:%S'))
     cts = []
     publish = xmlrpclib.Boolean(0)
 
-    import re
-    re_date = r'^(\d{2})/(\d{2})/(\d{4}) (\d{2}):(\d{2}):(\d{2})( ([AP]M))?$'
-    re_date = re.compile(re_date).search
-
-    while 1:
-        line = sys.stdin.readline()
-        if line == '':
-            break
-
+    for line in sys.stdin:
         line = line.rstrip()
         if state == 0:
             if line == '-----':
@@ -612,30 +688,8 @@ def parsePost():
                 key, val = line[:idx].strip().upper(), line[idx+1:].strip()
                 if key == 'TITLE':
                     post['title'] = val
-                    
                 elif key == 'DATE':
-                    match = re_date(val.upper())
-                    if match is None:
-                        raise Exception, 'Date value "%s" is invalid.' % val
-                    result = map(int, match.group(1, 2, 3, 4, 5, 6))
-                    try:
-                        pm = match.group(8)
-                    except IndexError:
-                        pass
-                    else:
-                        if pm == 'PM':
-                            if result[3] != 12:
-                                result[3] += 12
-                        elif pm == 'AM':
-                            if result[3] == 12:
-                                result[3] = 0
-                        elif pm is not None:
-                            raise Exception, 'Expect (AM|PM) get "%s"' % pm
-
-                    result[0:3] = [result[2], result[0], result[1]]
-                    result += [0, 1, -1]
-                        
-                    val = time.strftime('%Y%m%dT%H:%M:%S', tuple(result))
+                    val = time.strftime('%Y%m%dT%H:%M:%S', parse_date(val))
                     post['dateCreated'] = xmlrpclib.DateTime(val)
                 elif key == 'STATUS':
                     publish = xmlrpclib.Boolean(val.lower() == 'publish')
@@ -681,7 +735,7 @@ def parsePost():
             state = 2
 
         elif state == 2:
-            if line == '-----':
+            if line.startswith('-----') and (not line.rstrip('-')):
                 code = None
                 state = 1
             else:
@@ -694,12 +748,11 @@ def parsePost():
     return post, cts, publish
 
 
-def printPost(post, cts):
+def print_post(post, cts):
     if post.has_key('title'):
         print 'TITLE:', post['title']
-    print 'DATE:', \
-        time.strftime('%m/%d/%Y %H:%M:%S',
-                      decodeISO8601(post['dateCreated'].value))
+    print 'DATE:', time.strftime('%m/%d/%Y %H:%M:%S',
+        decode_iso8601(post['dateCreated'].value))
                       
     for cat in cts:
         if cat['isPrimary']:
@@ -742,7 +795,7 @@ def printPost(post, cts):
         print post['mt_excerpt']
 
 
-def printTable(table, heading=1):
+def print_table(table, heading=1):
     # We have to work out the maximum width first.
     if not table:
         return
@@ -758,8 +811,8 @@ def printTable(table, heading=1):
             if len(cell) > widths[idx]:
                 widths[idx] = len(cell)
 
-    border = '+'+('+'.join(['-'*(w+2) for w in widths]))+'+'
-    format = '|'+('|'.join([' %%-%ds ' % w for w in widths]))+'|'
+    border = '+'+('+'.join(['-'*(width + 2) for width in widths]))+'+'
+    format = '|'+('|'.join([' %%-%ds ' % width for width in widths]))+'|'
 
     hdrs = 0
 
@@ -780,58 +833,58 @@ def main(args):
     try:
         opts, args = getopt.getopt(args, 'a:B:Cc:E:G:hL:NP:qR:TU:vV')
     except getopt.GetoptError, ex:
-        print >>sys.stderr, 'Error: '+str(ex)
-	print >>sys.stderr, __doc__
-	sys.exit(1)
+        print >> sys.stderr, 'Error: '+str(ex)
+        print >> sys.stderr, __doc__
+        sys.exit(1)
 
-    mt = MT()
+    mtsend = MTSend()
     config = None
 
-    for o, a in opts:
-        if o == '-a':
-            mt.alias = a
-        elif o == '-B':
-            mt.setMode('b', a)
-        elif o == '-C':
-            mt.setMode('c')
-        elif o == '-c':
-            config = a
-        elif o == '-E':
-            mt.setMode('e', a)
-        elif o == '-G':
-            mt.setMode('g', a)
-        elif o == '-h':
-            print >>sys.stderr, __doc__
+    for opt, arg in opts:
+        if opt == '-a':
+            mtsend.alias = arg
+        elif opt == '-B':
+            mtsend.setMode('b', arg)
+        elif opt == '-C':
+            mtsend.setMode('c')
+        elif opt == '-c':
+            config = arg
+        elif opt == '-E':
+            mtsend.setMode('e', arg)
+        elif opt == '-G':
+            mtsend.setMode('g', arg)
+        elif opt == '-h':
+            print >> sys.stderr, __doc__
             sys.exit(0)
-        elif o == '-L':
-            mt.setMode('l', a)
-        elif o == '-N':
-            mt.setMode('n')
-        elif o == '-P':
-            mt.setMode('p', a)
-        elif o == '-q':
-            mt.verbose -= 1
-        elif o == '-R':
-            mt.setMode('r', a)
-        elif o == '-T':
-            mt.setMode('t')
-        elif o == '-U':
-            mt.setMode('u', a)
-        elif o == '-v':
-            mt.verbose += 1
-        elif o == '-V':
-            print >>sys.stderr, __version__
+        elif opt == '-L':
+            mtsend.setMode('l', arg)
+        elif opt == '-N':
+            mtsend.setMode('n')
+        elif opt == '-P':
+            mtsend.setMode('p', arg)
+        elif opt == '-q':
+            mtsend.verbose -= 1
+        elif opt == '-R':
+            mtsend.setMode('r', arg)
+        elif opt == '-T':
+            mtsend.setMode('t')
+        elif opt == '-U':
+            mtsend.setMode('u', arg)
+        elif opt == '-v':
+            mtsend.verbose += 1
+        elif opt == '-V':
+            print >> sys.stderr, 'Version %s' % __version__
             sys.exit(0)
         else:
-            print >>sys.stderr, 'Warning: Option "%s" is not handled.' % o
+            print >> sys.stderr, 'Warning: Option "%s" is not handled.' % opt
 
-    if mt.mode is None:
-        print >>sys.stderr, 'Error: Action is not specified'
-        print >>sys.stderr, __doc__
+    if mtsend.mode is None:
+        print >> sys.stderr, 'Error: Action is not specified'
+        print >> sys.stderr, __doc__
         sys.exit(1)
 
     if xmlrpclib is None:
-        print >>sys.stderr, '''Error: Cannot import "xmlrpclib" module.
+        print >> sys.stderr, '''Error: Cannot import "xmlrpclib" module.
 
 You should either upgrade to Python 2.2+, or download and install the 
 "xmlrpclib" from the following website:
@@ -841,13 +894,14 @@ You should either upgrade to Python 2.2+, or download and install the
         sys.exit(1)
 
     try:
-        mt.loadConfig(config)
-        mt.execute()
+        mtsend.loadConfig(config)
+        mtsend.execute()
     except Exception, ex:
-        if mt.verbose > 1:
+        if mtsend.verbose > 1:
             raise
         else:
-            print >>sys.stderr, 'Error:', ex
+            print >> sys.stderr, 'Error:', ex
+
 
 if __name__ == '__main__':
     main(sys.argv[1:])
