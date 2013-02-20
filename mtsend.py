@@ -570,6 +570,13 @@ class MTSend(object):
 
             xmlrpc.client.Transport.send_content(self, connection, request_body)
 
+
+        def send_request(self, host, handler, request_body, debug):
+            if not self.__ssl:
+              handler = 'http://' + host + handler
+
+            return xmlrpc.client.Transport.send_request(self, host, handler, request_body, debug)
+
         def make_connection(self, host):
             "Make a connection to the proxy server"
 
@@ -579,11 +586,9 @@ class MTSend(object):
             # send_request() call.
 
             if self.__ssl:
-              self.__port = 443
-              self._extra_headers = ['User-Agent', 'mtsend.py/%s' % __version__]
-
-            self.__target_host = host
-            return xmlrpc.client.Transport.make_connection(self, host)
+              return xmlrpc.client.SafeTransport.make_connection(self, "%s:%d" % (host, self.__port))
+            else:
+              return xmlrpc.client.Transport.make_connection(self, "%s:%d" % (host, self.__port))
 
 def decode_iso8601(date):
     # Translate an ISO8601 date to the tuple format used in Python's time
