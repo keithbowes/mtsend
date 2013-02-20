@@ -541,6 +541,12 @@ class MTSend(object):
             self.__password = password
             self.__ssl = ssl
             self.__target_host = None
+            self._connection = (None, None)
+            self._extra_headers = []
+            self._use_builtin_types = True
+            self._use_datetime = None
+            self.user_agent = "mtsend.py/%s" % __version__
+
 
         def get_authentication(self):
             import base64
@@ -549,44 +555,6 @@ class MTSend(object):
             auth_token = auth_token.strip()
             return 'Basic '+auth_token
 
-        def make_connection(self, host):
-            "Make a connection to the proxy server"
-            
-            # Note that we will try to connect to the proxy server instead of
-            # our target host. It also needs to store the information about
-            # the target host so that we can use that information in
-            # send_request() call.
-
-            import socket
-
-            if self.__ssl:
-                # XXX: Code pieces taken from
-                # http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/301740
-                header = [
-                    'CONNECT %s:443 HTTP/1.0' % host,
-                    'User-Agent: mtsend.py/%s' % __version__,
-                ]
-                if self.__username and self.__password:
-                    header.append('Proxy-Authentication: %s' %
-                        self.get_authentication())
-                proxy = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                proxy.connect((self.__host, self.__port))
-                proxy.sendall('\r\n'.join(header)+'\r\n\r\n')
-
-                response = proxy.recv(8192) 
-                status = response.split()[1]
-                if status != '200':
-                    print(response)
-                    raise Exception('Invalid CONNECT response "%s"' % status)
-
-                ssl = socket.ssl(proxy, None, None)
-                sock = http.client.FakeSocket(proxy, ssl)
-                conn = http.client.HTTPConnection('localhost')
-                conn.sock = sock
-                return HTTP(conn)
-            else:
-                self.__target_host = host
-                return http.client.HTTP('%s:%d' % (self.__host, self.__port))
 
         def send_content(self, connection, request_body):
             """Send the content of the XML-RPC request to the server.
@@ -602,11 +570,20 @@ class MTSend(object):
 
             xmlrpc.client.Transport.send_content(self, connection, request_body)
 
-        def send_request(self, connection, handler, request_body):
-            if not self.__ssl:
-                handler = 'http://' + self.__target_host + handler
-            connection.putrequest("POST", handler)
+        def make_connection(self, host):
+            "Make a connection to the proxy server"
 
+            # Note that we will try to connect to the proxy server instead of
+            # our target host. It also needs to store the information about
+            # the target host so that we can use that information in
+            # send_request() call.
+
+            if self.__ssl:
+              self.__port = 443
+              self._extra_headers = ['User-Agent', 'mtsend.py/%s' % __version__]
+
+            self.__target_host = host
+            return xmlrpc.client.Transport.make_connection(self, host)
 
 def decode_iso8601(date):
     # Translate an ISO8601 date to the tuple format used in Python's time
@@ -636,7 +613,7 @@ def get_rpc_transport(httptype):
             hostname = match.group(6)
             bindport = int(match.group(7))
 
-            return ProxyTransport(hostname, bindport, username, password,
+            return MTSend.ProxyTransport(hostname, bindport, username, password,
                 httptype=='https')
 
     # Letting ServerProxy to pick the best suitable transport
