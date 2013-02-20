@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Command Line Movable Type Client
 # ================================
@@ -9,6 +9,11 @@
 #
 # HISTORY
 # =======
+#
+# 1.1-kb-1.0 - TBD
+# + Start of the kb branch (keithbowes@github)
+# + Ported to Python 3
+# + Support for the XDG config layout
 #
 # 1.1 - 19 Nov 2005
 # + Add SSL support for proxy.
@@ -58,7 +63,7 @@
 # ==================
 # Configuration file for mtsend.py is in the style of Windows INI files, which
 # consist of sections and key/value pairs. There are 3 main sections - global,
-# site and blog.
+# site and blog. The configuration file should be mode 600.
 #
 # Global Section:
 #   There is only one key/value in this section, and it is used to note the
@@ -189,7 +194,7 @@ Options:
     -a alias    Use "alias" as the blog alias. This script will locate
                 relavent site URL/username/password information using this
                 alias.
-    -c config   Load "config" as configuration file, instead of $HOME/.mtsendrc
+    -c config   Load "config" as configuration file, instead of the default
     -h          Display this help message.
     -q          Decrease verbose level.
     -v          Increase verbose level. Message goes to standard error.
@@ -203,13 +208,14 @@ __copyright__   = 'Copyright (c) 2002-2005 Scott Yang'
 __date__        = '2005-11-19'
 __version__     = '1.1'
 
-import ConfigParser
-import httplib
+import configparser
+import httplib2
 import os
 import re
 import sys
 import time
-import urllib
+import urllib.request, urllib.parse, urllib.error
+import xmlrpc.client
 
 
 class MTSend(object):
@@ -227,7 +233,7 @@ class MTSend(object):
         try:
             handler = getattr(self, 'execute_%s' % self.mode)
         except AttributeError:
-            raise Exception, 'Unknown execution mode: %s' % self.mode
+            raise Exception('Unknown execution mode: %s' % self.mode)
         else:
             handler()
 
@@ -248,7 +254,7 @@ class MTSend(object):
         result = []
         for cat in cts:
             result.append([cat['categoryId'], cat['categoryName']])
-        result.sort(lambda x, y: cmp(x[1], y[1]))
+        sorted(result)
         result[0:0] = [['ID', 'Category Name']]
         print_table(result)
 
@@ -261,12 +267,11 @@ class MTSend(object):
             try:
                 postid = post['postid']
             except KeyError:
-                raise Exception, 'Cannot discover post ID from the input.'
+                raise Exception('Cannot discover post ID from the input.')
             
-        elif post.has_key('postid') and (post['postid'] != postid):
-            raise Exception, \
-                'Post ID does not match. ID in the input is "%s"' % \
-                    post['postid']
+        elif 'postid' in post and (post['postid'] != postid):
+            raise Exception('Post ID does not match. ID in the input is "%s"' % \
+                    post['postid'])
 
         srv = self.getRPCServer()
         self.log(1, 'Saving post entry "%s"...', postid)
@@ -289,7 +294,7 @@ class MTSend(object):
             if len(post) > 0:
                 post = post[0]
             else:
-                raise Exception, 'The current blog does not have any entry.'
+                raise Exception('The current blog does not have any entry.')
         else:
             self.log(1, 'Retrieve post entry "%s"...', self.modeopt)
             post = srv.metaWeblog.getPost\
@@ -351,7 +356,7 @@ class MTSend(object):
             self.modeopt = postid
             self.execute_r()
 
-        print postid
+        print(postid)
     
     def execute_p(self):
         srv = self.getRPCServer()
@@ -386,24 +391,24 @@ class MTSend(object):
         self.log(1, 'Uploading "%s" (%d bytes)...', self.modeopt, len(bin))
         media_object = {
             'name': self.modeopt,
-            'bits': xmlrpclib.Binary(bin),
+            'bits': xmlrpc.client.Binary(bin),
         }
         
         result = srv.metaWeblog.newMediaObject(self.get_blogid(), 
             self.get_username(), self.get_password(), media_object)
 
-        print result['url']
+        print(result['url'])
 
     def getRPCServer(self):
         if self.rpcsrv is not None:
             return self.rpcsrv
 
-        httptype = urllib.splittype(self._getSite('url'))[0]
+        httptype = urllib.parse.splittype(self._getSite('url'))[0]
         transport = get_rpc_transport(httptype)
 
         # Default we will use 'UTF-8' encoding, if the site encoding option is
         # not provided.
-        return xmlrpclib.ServerProxy(self._getSite('url'), transport, 
+        return xmlrpc.client.ServerProxy(self._getSite('url'), transport, 
             self._getSite('encoding', 'UTF-8'))
 
     def get_blogid(self):
@@ -417,25 +422,30 @@ class MTSend(object):
 
     def loadConfig(self, config):
         if config is None:
-            config = os.path.join(os.environ['HOME'], '.mtsendrc')
+          try:
+            config = os.path.join(os.environ['XDG_CONFIG_HOME'], 'mtsend/mtsend.rc');
+          except:
+            config = os.path.join(os.environ['HOME'], '.config/mtsend/mtsend.rc')
 
-        if not os.access(config, os.R_OK):
-            raise Exception, \
-                'Configuration file "%s" is not readable' % config
+            if not os.access(config, os.R_OK):
+                config = os.path.join(os.environ['HOME'], '.mtsendrc')
 
-        self.config = ConfigParser.ConfigParser()
+          if not os.access(config, os.R_OK):
+              raise Exception('Configuration file is not readable')
+
+        self.config = configparser.ConfigParser()
         self.config.read([config])
 
     def log(self, level, msg, *fmt):
         if self.verbose >= level:
-            print >> sys.stderr, msg % fmt
+            print(msg % fmt, file=sys.stderr)
 
     def setMode(self, mode, modeopt=None):
         if self.mode is None:
             self.mode = mode
             self.modeopt = modeopt
         else:
-            raise Exception, 'Conflicting operational mode.'
+            raise Exception('Conflicting operational mode.')
 
     def _fixCategories(self, cts):
         if len(cts) > 0:
@@ -462,34 +472,34 @@ class MTSend(object):
 
     def _getBlog(self, option, default=None):
         if self.config is None:
-            raise Exception, 'Configuration has not been loaded.'
+            raise Exception('Configuration has not been loaded.')
 
         if self.alias is None:
             try:
                 alias = self._getGlobal('default')
             except KeyError:
-                raise Exception, 'Blog alias has not been specified.'
+                raise Exception('Blog alias has not been specified.')
         else:
             alias = self.alias
 
         try:
             return self.config.get('blog-%s' % alias, option)
-        except ConfigParser.Error:
+        except configparser.Error:
             if default is not None:
                 return default
             else:
-                raise KeyError, option
+                raise KeyError(option)
 
     def _getGlobal(self, option, default=None):
         if self.config is None:
-            raise Exception, 'Configuration has not been loaded.'
+            raise Exception('Configuration has not been loaded.')
         try:
             return self.config.get('global', option)
-        except ConfigParser.Error:
+        except configparser.Error:
             if default is not None:
                 return default
             else:
-                raise KeyError, option
+                raise KeyError(option)
 
     def _getSite(self, option, default=None):
         try:
@@ -497,26 +507,19 @@ class MTSend(object):
                 self.site = self._getBlog('site')
                 
             return self.config.get('site-%s' % self.site, option)
-        except (ConfigParser.Error, KeyError):
+        except (configparser.Error, KeyError):
             if default is not None:
                 return default
             else:
-                raise KeyError, option
+                raise KeyError(option)
 
-try:
-    import xmlrpclib
-except ImportError:
-    # Error reporting will be raised in the main() function. We will simply
-    # ignore the error here.
-    xmlrpclib = None
-else:
-    class HTTP(httplib.HTTP):
+    class HTTP(httplib2.Http):
         def __init__(self, conn):
-            httplib.HTTP.__init__(self)
+            http.client.HTTP.__init__(self)
             self._setup(conn)
 
 
-    class ProxyTransport(xmlrpclib.Transport):
+    class ProxyTransport(xmlrpc.client.Transport):
         """Transport class for the XMLRPC.
 
         Instead of using the HTTP/HTTPS transport, it tries to use a proxy
@@ -542,7 +545,7 @@ else:
         def get_authentication(self):
             import base64
             auth_token = '%s:%s' % (self.__username, self.__password)
-            auth_token = base64.encodestring(urllib.unquote(auth_token))
+            auth_token = base64.encodestring(urllib.parse.unquote(auth_token))
             auth_token = auth_token.strip()
             return 'Basic '+auth_token
 
@@ -573,17 +576,17 @@ else:
                 response = proxy.recv(8192) 
                 status = response.split()[1]
                 if status != '200':
-                    print response
-                    raise Exception, 'Invalid CONNECT response "%s"' % status
+                    print(response)
+                    raise Exception('Invalid CONNECT response "%s"' % status)
 
                 ssl = socket.ssl(proxy, None, None)
-                sock = httplib.FakeSocket(proxy, ssl)
-                conn = httplib.HTTPConnection('localhost')
+                sock = http.client.FakeSocket(proxy, ssl)
+                conn = http.client.HTTPConnection('localhost')
                 conn.sock = sock
                 return HTTP(conn)
             else:
                 self.__target_host = host
-                return httplib.HTTP('%s:%d' % (self.__host, self.__port))
+                return http.client.HTTP('%s:%d' % (self.__host, self.__port))
 
         def send_content(self, connection, request_body):
             """Send the content of the XML-RPC request to the server.
@@ -597,7 +600,7 @@ else:
                 connection.putheader("Proxy-Authorization", 
                     self.get_authentication())
 
-            xmlrpclib.Transport.send_content(self, connection, request_body)
+            xmlrpc.client.Transport.send_content(self, connection, request_body)
 
         def send_request(self, connection, handler, request_body):
             if not self.__ssl:
@@ -611,10 +614,10 @@ def decode_iso8601(date):
     regex = r'^(\d{4})(\d{2})(\d{2})T(\d{2}):(\d{2}):(\d{2})'
     match = re.search(regex, str(date))
     if not match:
-        raise Exception, '"%s" is not a correct ISO8601 date format' % date
+        raise Exception('"%s" is not a correct ISO8601 date format' % date)
     else:
         result = match.group(1, 2, 3, 4, 5, 6)
-        result = map(int, result)
+        result = list(map(int, result))
         result += [0, 1, -1]
         return tuple(result)
 
@@ -646,8 +649,8 @@ re_date = re.compile(re_date).search
 def parse_date(val):
     match = re_date(val.upper())
     if match is None:
-        raise Exception, 'Date value "%s" is invalid.' % val
-    result = map(int, match.group(1, 2, 3, 4, 5, 6))
+        raise Exception('Date value "%s" is invalid.' % val)
+    result = list(map(int, match.group(1, 2, 3, 4, 5, 6)))
     try:
         ampm = match.group(8)
     except IndexError:
@@ -660,7 +663,7 @@ def parse_date(val):
             if result[3] == 12:
                 result[3] = 0
         elif ampm is not None:
-            raise Exception, 'Expect (AM|PM) get "%s"' % ampm
+            raise Exception('Expect (AM|PM) get "%s"' % ampm)
 
     result[0:3] = [result[2], result[0], result[1]]
     result += [0, 1, -1]
@@ -673,7 +676,7 @@ def parse_post():
     code = None
     post = {}
     cts = []
-    publish = xmlrpclib.Boolean(0)
+    publish = xmlrpc.client.Boolean(0)
 
     for line in sys.stdin:
         line = line.rstrip()
@@ -690,14 +693,13 @@ def parse_post():
                     post['title'] = val
                 elif key == 'DATE':
                     val = time.strftime('%Y%m%dT%H:%M:%S', parse_date(val))
-                    post['dateCreated'] = xmlrpclib.DateTime(val)
+                    post['dateCreated'] = xmlrpc.client.DateTime(val)
                 elif key == 'STATUS':
-                    publish = xmlrpclib.Boolean(val.lower() == 'publish')
+                    publish = xmlrpc.client.Boolean(val.lower() == 'publish')
                 elif key == 'ALLOW COMMENTS':
                     val = int(val)
                     if val not in (0, 1, 2):
-                        raise Exception, \
-                            'ALLOW COMMENTS must be either 0, 1 or 2'
+                        raise Exception('ALLOW COMMENTS must be either 0, 1 or 2')
                     post['mt_allow_comments'] = val
                 elif key == 'ALLOW PINGS':
                     post['mt_allow_pings'] = int(val)
@@ -719,7 +721,7 @@ def parse_post():
                 elif key == 'KEYWORDS':
                     post['mt_keywords'] = val
                 else:
-                    raise Exception, 'Invalid field key: %s' % key
+                    raise Exception('Invalid field key: %s' % key)
 
         elif state == 1:
             line = line.upper()
@@ -730,7 +732,7 @@ def parse_post():
             elif line == 'EXCERPT:':
                 code = 'mt_excerpt'
             else:
-                raise Exception, 'Invalid line in the current state: %s' % line
+                raise Exception('Invalid line in the current state: %s' % line)
 
             state = 2
 
@@ -739,7 +741,7 @@ def parse_post():
                 code = None
                 state = 1
             else:
-                if post.has_key(code):
+                if code in post:
                     post[code] += '\n' + line
                 else:
                     post[code]  = line
@@ -749,50 +751,50 @@ def parse_post():
 
 
 def print_post(post, cts):
-    if post.has_key('title'):
-        print 'TITLE:', post['title']
-    print 'DATE:', time.strftime('%m/%d/%Y %H:%M:%S',
-        decode_iso8601(post['dateCreated'].value))
+    if 'title' in post:
+        print('TITLE:', post['title'])
+    print('DATE:', time.strftime('%m/%d/%Y %H:%M:%S',
+        decode_iso8601(post['dateCreated'].value)))
                       
     for cat in cts:
         if cat['isPrimary']:
-            print 'PRIMARY CATEGORY:', cat['categoryName']
-        print 'CATEGORY:', cat['categoryName']
+            print('PRIMARY CATEGORY:', cat['categoryName'])
+        print('CATEGORY:', cat['categoryName'])
 
     # We cannot really determine whether the post has been published.
     # Therefore we assume that it is.
-    print 'STATUS: publish'
+    print('STATUS: publish')
 
-    if post.has_key('mt_allow_comments'):
-        print 'ALLOW COMMENTS:', post['mt_allow_comments']
+    if 'mt_allow_comments' in post:
+        print('ALLOW COMMENTS:', post['mt_allow_comments'])
     
-    if post.has_key('mt_allow_pings'):
-        print 'ALLOW PINGS:', post['mt_allow_pings']
+    if 'mt_allow_pings' in post:
+        print('ALLOW PINGS:', post['mt_allow_pings'])
     
-    if post.has_key('mt_convert_breaks'):
-        print 'CONVERT BREAKS:', post['mt_convert_breaks']
+    if 'mt_convert_breaks' in post:
+        print('CONVERT BREAKS:', post['mt_convert_breaks'])
 
     if post.get('mt_keywords'):
-        print 'KEYWORDS:', post['mt_keywords']
+        print('KEYWORDS:', post['mt_keywords'])
 
     # We will also print the postid so that it can be verified later.
-    print 'POSTID:', post['postid']
+    print('POSTID:', post['postid'])
 
     # Start printing the body
     if post.get('description'):
-        print '-----'
-        print 'BODY:'
-        print post['description']
+        print('-----')
+        print('BODY:')
+        print(post['description'])
 
     if post.get('mt_text_more'):
-        print '-----'
-        print 'EXTENDED BODY:'
-        print post['mt_text_more']
+        print('-----')
+        print('EXTENDED BODY:')
+        print(post['mt_text_more'])
         
     if post.get('mt_excerpt'):
-        print '-----'
-        print 'EXCERPT:'
-        print post['mt_excerpt']
+        print('-----')
+        print('EXCERPT:')
+        print(post['mt_excerpt'])
 
 
 def print_table(table, heading=1):
@@ -802,39 +804,32 @@ def print_table(table, heading=1):
 
     widths = [0] * len(table[0])
     for row in table:
-        for idx, cell in zip(range(len(row)), row):
-            if isinstance(cell, unicode):
-                cell = cell.encode(DEFAULT_ENCODING)
-            elif not isinstance(cell, str):
-                cell = str(cell)
+        for idx, cell in zip(list(range(len(row))), row):
             row[idx] = cell
             if len(cell) > widths[idx]:
                 widths[idx] = len(cell)
 
     border = '+'+('+'.join(['-'*(width + 2) for width in widths]))+'+'
-    format = '|'+('|'.join([' %%-%ds ' % width for width in widths]))+'|'
+    format = '|'+('|'.join([' %% %ds ' % width for width in widths]))+'|'
 
     hdrs = 0
 
-    print border
+    print(border)
     for row in table:
-        print format % tuple(row)
+        print(format % tuple(row))
         if (not hdrs) and heading and (len(table) > 1):
-            print border
+            print(border)
             hdrs = 1
-    print border
-
-
-DEFAULT_ENCODING = 'utf-8'
+    print(border)
 
 
 def main(args):
     import getopt
     try:
         opts, args = getopt.getopt(args, 'a:B:Cc:E:G:hL:NP:qR:TU:vV')
-    except getopt.GetoptError, ex:
-        print >> sys.stderr, 'Error: '+str(ex)
-        print >> sys.stderr, __doc__
+    except getopt.GetoptError as ex:
+        print('Error: '+str(ex), file=sys.stderr)
+        print(__doc__, file=sys.stderr)
         sys.exit(1)
 
     mtsend = MTSend()
@@ -854,7 +849,7 @@ def main(args):
         elif opt == '-G':
             mtsend.setMode('g', arg)
         elif opt == '-h':
-            print >> sys.stderr, __doc__
+            print(__doc__, file=sys.stderr)
             sys.exit(0)
         elif opt == '-L':
             mtsend.setMode('l', arg)
@@ -873,34 +868,24 @@ def main(args):
         elif opt == '-v':
             mtsend.verbose += 1
         elif opt == '-V':
-            print >> sys.stderr, 'Version %s' % __version__
+            print('Version %s' % __version__, file=sys.stderr)
             sys.exit(0)
         else:
-            print >> sys.stderr, 'Warning: Option "%s" is not handled.' % opt
+            print('Warning: Option "%s" is not handled.' % opt, file=sys.stderr)
 
     if mtsend.mode is None:
-        print >> sys.stderr, 'Error: Action is not specified'
-        print >> sys.stderr, __doc__
-        sys.exit(1)
-
-    if xmlrpclib is None:
-        print >> sys.stderr, '''Error: Cannot import "xmlrpclib" module.
-
-You should either upgrade to Python 2.2+, or download and install the 
-"xmlrpclib" from the following website:
-
-    http://www.pythonware.com/products/xmlrpc/
-'''
+        print('Error: Action is not specified', file=sys.stderr)
+        print(__doc__, file=sys.stderr)
         sys.exit(1)
 
     try:
         mtsend.loadConfig(config)
         mtsend.execute()
-    except Exception, ex:
+    except Exception as ex:
         if mtsend.verbose > 1:
             raise
         else:
-            print >> sys.stderr, 'Error:', ex
+            print('Error:', ex, file=sys.stderr)
 
 
 if __name__ == '__main__':
