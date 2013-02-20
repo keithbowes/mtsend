@@ -165,9 +165,11 @@ Usage:
     mtsend.py [action] [options]
 
 Actions:
+    -A name     Add a new category
     -B site     List all the blogs you can access in [site]. Site has to be in
                 the configuration file.
     -C          Print out a list of existing categories.
+    -D catid    Delete an existing category
     -E postid   Edit an old post. It will read the post entry from the
                 standard input, in Movable Type's import/export format, and
                 then save it back to the server. If the value is '-', then it
@@ -231,6 +233,10 @@ class MTSend(object):
         else:
             handler()
 
+    def execute_a(self):
+      srv = self.getRPCServer()
+      srv.wp.newCategory(self.get_blogid(), self.get_username(), self.get_password(), {'name': self.modeopt})
+
     def execute_b(self):
         self.site = self.modeopt
         srv = self.getRPCServer()
@@ -251,6 +257,10 @@ class MTSend(object):
         result.sort(lambda x, y: cmp(x[1], y[1]))
         result[0:0] = [['ID', 'Category Name']]
         print_table(result)
+
+    def execute_d(self):
+      srv = self.getRPCServer()
+      srv.wp.deleteCategory(int(self.get_blogid()), self.get_username(), self.get_password(), int(self.modeopt))
 
     def execute_e(self):
         self.log(1, 'Parsing post entry from standard input...')
@@ -284,7 +294,7 @@ class MTSend(object):
         srv = self.getRPCServer()
         if self.modeopt.lower() == '-':
             self.log(1, 'Retrieve most recent post entry...')
-            post = srv.metaWeblog.getRecentPosts(self.get_blogid(), 
+            post = srv.metaWeblog.getRecentPosts(str(self.get_blogid()), 
                 self.get_username(), self.get_password(), 1)
             if len(post) > 0:
                 post = post[0]
@@ -298,7 +308,7 @@ class MTSend(object):
         # Get the categories of this post.
         self.log(1, 'Retrieve categories for post entry "%s"...', 
                  post['postid'])
-        cts = srv.mt.getPostCategories(post['postid'], self.get_username(), 
+        cts = srv.mt.getPostCategories(str(post['postid']), self.get_username(), 
             self.get_password())
 
         print_post(post, cts)
@@ -831,7 +841,7 @@ DEFAULT_ENCODING = 'utf-8'
 def main(args):
     import getopt
     try:
-        opts, args = getopt.getopt(args, 'a:B:Cc:E:G:hL:NP:qR:TU:vV')
+      opts, args = getopt.getopt(args, 'A:a:B:Cc:D:E:G:hL:NP:qR:TU:vV')
     except getopt.GetoptError, ex:
         print >> sys.stderr, 'Error: '+str(ex)
         print >> sys.stderr, __doc__
@@ -841,7 +851,9 @@ def main(args):
     config = None
 
     for opt, arg in opts:
-        if opt == '-a':
+        if opt == '-A':
+          mtsend.setMode('a', arg)
+        elif opt == '-a':
             mtsend.alias = arg
         elif opt == '-B':
             mtsend.setMode('b', arg)
@@ -849,6 +861,8 @@ def main(args):
             mtsend.setMode('c')
         elif opt == '-c':
             config = arg
+        elif opt == '-D':
+          mtsend.setMode('d', arg)
         elif opt == '-E':
             mtsend.setMode('e', arg)
         elif opt == '-G':
