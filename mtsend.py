@@ -13,7 +13,9 @@
 # 1.1-kb-1.0 - TBD
 # + Start of the kb branch (keithbowes@github)
 # + Ported to Python 3
-# + Support for the XDG config layout
+# + Support for the XDG directory layout
+# + Fixed proxy support
+# + Added new functionality
 #
 # 1.1 - 19 Nov 2005
 # + Add SSL support for proxy.
@@ -170,11 +172,11 @@ Usage:
     mtsend.py [action] [options]
 
 Actions:
-    -A name     Add a new category
+    -A name     Add a new category.
     -B site     List all the blogs you can access in [site]. Site has to be in
                 the configuration file.
     -C          Print out a list of existing categories.
-    -D catid    Delete an existing category
+    -D catid    Delete an existing category.
     -E postid   Edit an old post. It will read the post entry from the
                 standard input, in Movable Type's import/export format, and
                 then save it back to the server. If the value is '-', then it
@@ -191,12 +193,13 @@ Actions:
     -U filename Upload a file, reading from standard input, to the blog site,
                 with destination filename provided.
     -V          Show version information.
+    -X postid   Delete a post.
 
 Options:
     -a alias    Use "alias" as the blog alias. This script will locate
                 relavent site URL/username/password information using this
                 alias.
-    -c config   Load "config" as configuration file, instead of the default
+    -c config   Load "config" as configuration file, instead of the default.
     -h          Display this help message.
     -q          Decrease verbose level.
     -v          Increase verbose level. Message goes to standard error.
@@ -325,7 +328,7 @@ class MTSend(object):
         except:
             num = 5
 
-        func  = srv.mt.getRecentPostTitles
+        func  = srv.metaWeblog.getRecentPosts
         posts = func(self.get_blogid(), self.get_username(), 
             self.get_password(), num)
 
@@ -356,15 +359,6 @@ class MTSend(object):
                      ','.join([cat['categoryId'] for cat in cts]), postid)
             srv.mt.setPostCategories(postid, self.get_username(), 
                 self.get_password(), cts)
-
-        # Somehow under MovableType 2.5, the new post will not trigger a
-        # rebuild. Therefore we will force a rebuild here.
-        #
-        # XXX: Apparently this behaviour no longer exists in later version of
-        # MT.
-        if False:
-            self.modeopt = postid
-            self.execute_r()
 
         print(postid)
     
@@ -408,6 +402,10 @@ class MTSend(object):
             self.get_username(), self.get_password(), media_object)
 
         print(result['url'])
+
+    def execute_x(self):
+      srv = self.getRPCServer()
+      srv.metaWeblog.deletePost('mtsend', self.modeopt, self.get_username(), self.get_password(), True)
 
     def getRPCServer(self):
         if self.rpcsrv is not None:
@@ -797,6 +795,7 @@ def print_table(table, heading=1):
     widths = [0] * len(table[0])
     for row in table:
         for idx, cell in zip(list(range(len(row))), row):
+            cell = str(cell)
             row[idx] = cell
             if len(cell) > widths[idx]:
                 widths[idx] = len(cell)
@@ -818,7 +817,7 @@ def print_table(table, heading=1):
 def main(args):
     import getopt
     try:
-      opts, args = getopt.getopt(args, 'A:a:B:Cc:D:E:G:hL:NP:qR:TU:vV')
+      opts, args = getopt.getopt(args, 'A:a:B:Cc:D:E:G:hL:NP:qR:TU:vVX:')
     except getopt.GetoptError as ex:
         print('Error: '+str(ex), file=sys.stderr)
         print(__doc__, file=sys.stderr)
@@ -866,6 +865,8 @@ def main(args):
         elif opt == '-V':
             print('Version %s' % __version__, file=sys.stderr)
             sys.exit(0)
+        elif opt == '-X':
+          mtsend.setMode('x', arg)
         else:
             print('Warning: Option "%s" is not handled.' % opt, file=sys.stderr)
 
