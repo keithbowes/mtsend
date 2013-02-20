@@ -209,7 +209,7 @@ __date__        = '2005-11-19'
 __version__     = '1.1'
 
 import configparser
-import httplib2
+import http.client
 import os
 import re
 import sys
@@ -513,7 +513,7 @@ class MTSend(object):
             else:
                 raise KeyError(option)
 
-    class HTTP(httplib2.Http):
+    class HTTP(http.client.HTTPConnection):
         def __init__(self, conn):
             http.client.HTTP.__init__(self)
             self._setup(conn)
