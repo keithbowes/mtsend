@@ -233,8 +233,14 @@ class MTSend(object):
         self.rpcsrv = None
         self.site = None
         self.modeopt = None
+        self.platform = None
 
     def execute(self):
+        try: 
+            self.platform = self._getSite('platform')
+        except:
+            self.platform = 'mt'
+
         try:
             handler = getattr(self, 'execute_%s' % self.mode)
         except AttributeError:
@@ -326,19 +332,31 @@ class MTSend(object):
         try:
             num = int(self.modeopt)
         except:
-            num = 5
+            if self.platform == 'b2':
+                num = 0
+            else:
+                num = 5
 
-        func  = srv.metaWeblog.getRecentPosts
+        if self.platform == 'b2':
+            func  = srv.metaWeblog.getRecentPosts
+        else:
+            func = srv.mt.getRecentPostTitles
+
         posts = func(self.get_blogid(), self.get_username(), 
             self.get_password(), num)
 
         self.log(1, 'Retrieve "%d" recent posts...', num)
         result = [['ID', 'Date', 'Title']]
         for post in posts:
+            try:
+                dateCreated = time.strftime('%Y-%m-%d %H:%M:%S', 
+                    decode_iso8601(post['dateCreated'].value)),
+            except:
+                dateCreated = post['dateCreated']; # Already decoded
+
             result.append([
                 post['postid'],
-                time.strftime('%Y-%m-%d %H:%M:%S', 
-                    decode_iso8601(post['dateCreated'].value)),
+                dateCreated,
                 post['title']
             ])
 
@@ -428,18 +446,23 @@ class MTSend(object):
     def get_username(self):
         return self._getSite('username')
 
+    def getConfigFile(self):
+      try:
+        config = os.path.join(os.environ['XDG_CONFIG_HOME'], 'mtsend/mtsend.rc');
+      except:
+        config = os.path.join(os.environ['HOME'], '.config/mtsend/mtsend.rc')
+
+        if not os.access(config, os.R_OK):
+            config = os.path.join(os.environ['HOME'], '.mtsendrc')
+
+      if not os.access(config, os.R_OK):
+          raise Exception('Configuration file is not readable')
+
+      return config
+
     def loadConfig(self, config):
         if config is None:
-          try:
-            config = os.path.join(os.environ['XDG_CONFIG_HOME'], 'mtsend/mtsend.rc');
-          except:
-            config = os.path.join(os.environ['HOME'], '.config/mtsend/mtsend.rc')
-
-            if not os.access(config, os.R_OK):
-                config = os.path.join(os.environ['HOME'], '.mtsendrc')
-
-          if not os.access(config, os.R_OK):
-              raise Exception('Configuration file is not readable')
+            config = self.getConfigFile()
 
         self.config = configparser.ConfigParser()
         self.config.read([config])
@@ -741,10 +764,15 @@ def parse_post():
 
 
 def print_post(post, cts):
+    try:
+        dateCreated = time.strftime('%m/%d/%Y %H:%M:%S',
+        decode_iso8601(post['dateCreated'].value))
+    except:
+        dateCreated = post['dateCreated'] # Already decoded
+
     if 'title' in post:
         print('TITLE:', post['title'])
-    print('DATE:', time.strftime('%m/%d/%Y %H:%M:%S',
-        decode_iso8601(post['dateCreated'].value)))
+    print('DATE:', dateCreated)
                       
     for cat in cts:
         if cat['isPrimary']:
@@ -836,7 +864,11 @@ def main(args):
         elif opt == '-C':
             mtsend.setMode('c')
         elif opt == '-c':
-            config = arg
+            if os.access(arg, os.R_OK):
+                config = arg
+            else:
+                print(MTSend.getConfigFile(MTSend), file=sys.stderr)
+                sys.exit(0)
         elif opt == '-D':
           mtsend.setMode('d', arg)
         elif opt == '-E':
