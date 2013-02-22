@@ -87,10 +87,13 @@
 #     username=foo
 #     password=bar
 #     encoding=UTF-8
+#     platform=mt
 #
 #   It defines site "test" with the URL to the MovableType's XML-RPC CGI
 #   script, and the username/password used to access that site. "encoding" is
-#   optional, and defaults to UTF-8.
+#   optional, and defaults to UTF-8. "platform" is optional, defaulting to mt.
+#   If you use another blogging platform, setting this will help make certain
+#   mt-incompatible functionality available.
 #
 # Blog Section:
 #   You can have multiple blog sections for each Movable Type blogs you have
@@ -351,7 +354,7 @@ class MTSend(object):
             try:
                 dateCreated = time.strftime('%Y-%m-%d %H:%M:%S', 
                     decode_iso8601(post['dateCreated'].value)),
-            except:
+            except AttributeError:
                 dateCreated = post['dateCreated']; # Already decoded
 
             result.append([
@@ -767,7 +770,7 @@ def print_post(post, cts):
     try:
         dateCreated = time.strftime('%m/%d/%Y %H:%M:%S',
         decode_iso8601(post['dateCreated'].value))
-    except:
+    except AttributeError:
         dateCreated = post['dateCreated'] # Already decoded
 
     if 'title' in post:
