@@ -351,15 +351,10 @@ class MTSend(object):
         self.log(1, 'Retrieve "%d" recent posts...', num)
         result = [['ID', 'Date', 'Title']]
         for post in posts:
-            try:
-                dateCreated = time.strftime('%Y-%m-%d %H:%M:%S', 
-                    decode_iso8601(post['dateCreated'].value)),
-            except AttributeError:
-                dateCreated = post['dateCreated']; # Already decoded
-
             result.append([
                 post['postid'],
-                dateCreated,
+                time.strftime('%Y-%m-%d %H:%M:%S', 
+                    decode_iso8601(post['dateCreated'])),
                 post['title']
             ])
 
@@ -627,7 +622,7 @@ class MTSend(object):
 def decode_iso8601(date):
     # Translate an ISO8601 date to the tuple format used in Python's time
     # module.
-    regex = r'^(\d{4})(\d{2})(\d{2})T(\d{2}):(\d{2}):(\d{2})'
+    regex = r'^(\d{4})-?(\d{2})-?(\d{2})[T\s](\d{2}):(\d{2}):(\d{2})'
     match = re.search(regex, str(date))
     if not match:
         raise Exception('"%s" is not a correct ISO8601 date format' % date)
@@ -767,16 +762,11 @@ def parse_post():
 
 
 def print_post(post, cts):
-    try:
-        dateCreated = time.strftime('%m/%d/%Y %H:%M:%S',
-        decode_iso8601(post['dateCreated'].value))
-    except AttributeError:
-        dateCreated = post['dateCreated'] # Already decoded
-
     if 'title' in post:
         print('TITLE:', post['title'])
-    print('DATE:', dateCreated)
-                      
+    print('DATE:', time.strftime('%m/%d/%Y %H:%M:%S',
+        decode_iso8601(post['dateCreated'])))
+ 
     for cat in cts:
         if cat['isPrimary']:
             print('PRIMARY CATEGORY:', cat['categoryName'])
