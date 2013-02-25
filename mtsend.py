@@ -544,6 +544,12 @@ else:
             self.__password = password
             self.__ssl = ssl
             self.__target_host = None
+            self._connection = (None, None)
+            self._extra_headers = []
+            self._use_builtin_types = True
+            self._use_datetime = True
+            self.user_agent = "mtsend.py/%s" % __version__
+
 
         def get_authentication(self):
             import base64
@@ -551,45 +557,6 @@ else:
             auth_token = base64.encodestring(urllib.unquote(auth_token))
             auth_token = auth_token.strip()
             return 'Basic '+auth_token
-
-        def make_connection(self, host):
-            "Make a connection to the proxy server"
-            
-            # Note that we will try to connect to the proxy server instead of
-            # our target host. It also needs to store the information about
-            # the target host so that we can use that information in
-            # send_request() call.
-
-            import socket
-
-            if self.__ssl:
-                # XXX: Code pieces taken from
-                # http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/301740
-                header = [
-                    'CONNECT %s:443 HTTP/1.0' % host,
-                    'User-Agent: mtsend.py/%s' % __version__,
-                ]
-                if self.__username and self.__password:
-                    header.append('Proxy-Authentication: %s' %
-                        self.get_authentication())
-                proxy = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                proxy.connect((self.__host, self.__port))
-                proxy.sendall('\r\n'.join(header)+'\r\n\r\n')
-
-                response = proxy.recv(8192) 
-                status = response.split()[1]
-                if status != '200':
-                    print response
-                    raise Exception, 'Invalid CONNECT response "%s"' % status
-
-                ssl = socket.ssl(proxy, None, None)
-                sock = httplib.FakeSocket(proxy, ssl)
-                conn = httplib.HTTPConnection('localhost')
-                conn.sock = sock
-                return HTTP(conn)
-            else:
-                self.__target_host = host
-                return httplib.HTTP('%s:%d' % (self.__host, self.__port))
 
         def send_content(self, connection, request_body):
             """Send the content of the XML-RPC request to the server.
@@ -605,11 +572,26 @@ else:
 
             xmlrpclib.Transport.send_content(self, connection, request_body)
 
-        def send_request(self, connection, handler, request_body):
-            if not self.__ssl:
-                handler = 'http://' + self.__target_host + handler
-            connection.putrequest("POST", handler)
 
+        def send_request(self, host, handler, request_body):
+            if not self.__ssl:
+              handler = 'http://' + self.__target_host + handler
+
+            return xmlrpclib.Transport.send_request(self, self.__host, handler, request_body)
+
+        def make_connection(self, host):
+            "Make a connection to the proxy server"
+
+            # Note that we will try to connect to the proxy server instead of
+            # our target host. It also needs to store the information about
+            # the target host so that we can use that information in
+            # send_request() call.
+
+            self.__target_host = host
+            if self.__ssl:
+              return xmlrpclib.SafeTransport.make_connection(self, "%s:%d" % (host, self.__port))
+            else:
+              return xmlrpclib.Transport.make_connection(self, "%s:%d" % (host, self.__port))
 
 def decode_iso8601(date):
     # Translate an ISO8601 date to the tuple format used in Python's time
