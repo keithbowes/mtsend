@@ -772,9 +772,12 @@ def print_post(post, cts):
             print('PRIMARY CATEGORY:', cat['categoryName'])
         print('CATEGORY:', cat['categoryName'])
 
-    # We cannot really determine whether the post has been published.
-    # Therefore we assume that it is.
-    print('STATUS: publish')
+    if 'post_status' in post:
+        print('STATUS: ', post['post_status'])
+    else:
+        # We cannot really determine whether the post has been published.
+        # Therefore we assume that it is.
+        print('STATUS: publish')
 
     if 'mt_allow_comments' in post:
         print('ALLOW COMMENTS:', post['mt_allow_comments'])
@@ -860,7 +863,7 @@ def main(args):
             if os.access(arg, os.R_OK):
                 config = arg
             else:
-                print(MTSend.getConfigFile(MTSend), file=sys.stderr)
+                print(mtsend.getConfigFile(), file=sys.stderr)
                 sys.exit(0)
         elif opt == '-D':
           mtsend.setMode('d', arg)
