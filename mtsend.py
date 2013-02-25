@@ -765,9 +765,12 @@ def print_post(post, cts):
             print 'PRIMARY CATEGORY:', cat['categoryName']
         print 'CATEGORY:', cat['categoryName']
 
-    # We cannot really determine whether the post has been published.
-    # Therefore we assume that it is.
-    print 'STATUS: publish'
+    if 'post_status' in post:
+        print 'STATUS: ', post['post_status']
+    else:
+        # We cannot really determine whether the post has been published.
+        # Therefore we assume that it is.
+        print 'STATUS: publish'
 
     if post.has_key('mt_allow_comments'):
         print 'ALLOW COMMENTS:', post['mt_allow_comments']
