@@ -573,7 +573,7 @@ class MTSend(object):
             self._connection = (None, None)
             self._extra_headers = []
             self._use_builtin_types = True
-            self._use_datetime = None
+            self._use_datetime = True
             self.user_agent = "mtsend.py/%s" % __version__
 
 
@@ -604,7 +604,7 @@ class MTSend(object):
             if not self.__ssl:
               handler = 'http://' + host + handler
 
-            return xmlrpc.client.Transport.send_request(self, host, handler, request_body, debug)
+            return xmlrpc.client.Transport.send_request(self, self.__host, handler, request_body, debug)
 
         def make_connection(self, host):
             "Make a connection to the proxy server"
