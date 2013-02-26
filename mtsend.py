@@ -217,12 +217,11 @@ __date__        = '2005-11-19'
 __version__     = '1.1'
 
 import configparser
-import http.client
 import os
 import re
 import sys
 import time
-import urllib.request, urllib.parse, urllib.error
+import urllib.parse
 import xmlrpc.client
 
 
@@ -542,11 +541,6 @@ class MTSend(object):
             else:
                 raise KeyError(option)
 
-    class HTTP(http.client.HTTPConnection):
-        def __init__(self, conn):
-            http.client.HTTP.__init__(self)
-            self._setup(conn)
-
 
     class ProxyTransport(xmlrpc.client.Transport):
         """Transport class for the XMLRPC.
@@ -602,8 +596,11 @@ class MTSend(object):
 
         def send_request(self, host, handler, request_body, debug):
             if not self.__ssl:
-              handler = 'http://' + host + handler
+                prot = "http://"
+            else:
+                prot = "https://"
 
+            handler = prot + host + handler
             return xmlrpc.client.Transport.send_request(self, self.__host, handler, request_body, debug)
 
         def make_connection(self, host):
@@ -614,10 +611,7 @@ class MTSend(object):
             # the target host so that we can use that information in
             # send_request() call.
 
-            if self.__ssl:
-              return xmlrpc.client.SafeTransport.make_connection(self, "%s:%d" % (host, self.__port))
-            else:
-              return xmlrpc.client.Transport.make_connection(self, "%s:%d" % (host, self.__port))
+            return xmlrpc.client.Transport.make_connection(self, "%s:%d" % (host, self.__port))
 
 def decode_iso8601(date):
     # Translate an ISO8601 date to the tuple format used in Python's time
