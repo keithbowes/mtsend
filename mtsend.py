@@ -266,11 +266,18 @@ class MTSend(object):
 
     def execute_c(self):
         srv = self.getRPCServer()
-        cts = srv.mt.getCategoryList(self.get_blogid(), self.get_username(), 
+        if self.platform != "mw":
+            func = srv.mt.getCategoryList
+        else:
+            func = srv.metaWeblog.getCategories
+        cts = func(self.get_blogid(), self.get_username(), 
             self.get_password())
         result = []
         for cat in cts:
-            result.append([cat['categoryId'], cat['categoryName']])
+            if self.platform != "mw":
+                result.append([cat['categoryId'], cat['categoryName']])
+            else:
+                result.append([cat['htmlUrl'], cat['description']])
         sorted(result)
         result[0:0] = [['ID', 'Category Name']]
         print_table(result)
@@ -334,12 +341,12 @@ class MTSend(object):
         try:
             num = int(self.modeopt)
         except:
-            if self.platform == 'b2':
+            if self.platform != 'mt':
                 num = 0
             else:
                 num = 5
 
-        if self.platform == 'b2':
+        if self.platform != 'mt':
             func  = srv.metaWeblog.getRecentPosts
         else:
             func = srv.mt.getRecentPostTitles
@@ -420,7 +427,7 @@ class MTSend(object):
 
     def execute_x(self):
       srv = self.getRPCServer()
-      srv.metaWeblog.deletePost('mtsend', self.modeopt, self.get_username(), self.get_password(), True)
+      srv.blogger.deletePost('mtsend', self.modeopt, self.get_username(), self.get_password(), True)
 
     def getRPCServer(self):
         if self.rpcsrv is not None:
