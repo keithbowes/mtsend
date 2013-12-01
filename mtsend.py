@@ -250,7 +250,8 @@ class MTSend(object):
 
     def execute_c(self):
         srv = self.getRPCServer()
-        cts = srv.mt.getCategoryList(self.get_blogid(), self.get_username(), 
+        func = srv.mt.getCategoryList
+        cts = func(self.get_blogid(), self.get_username(), 
             self.get_password())
         result = []
         for cat in cts:
@@ -398,7 +399,7 @@ class MTSend(object):
 
     def execute_x(self):
       srv = self.getRPCServer()
-      srv.metaWeblog.deletePost('mtsend', self.modeopt, self.get_username(), self.get_password(), True)
+      srv.blogger.deletePost('mtsend', self.modeopt, self.get_username(), self.get_password(), True)
 
     def getRPCServer(self):
         if self.rpcsrv is not None:
