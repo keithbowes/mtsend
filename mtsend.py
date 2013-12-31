@@ -108,7 +108,7 @@
 # format. The format is very close to Movable Type's import/export format,
 # which is documented here:
 #
-#   http://www.movabletype.org/docs/mtmanual_importing.html
+#   http://movabletype.org/documentation/appendices/import-export-format.html
 #
 # It consists of a header and body. For example:
 #
