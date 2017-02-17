@@ -218,6 +218,7 @@ __version__     = '1.1'
 
 import configparser
 import os
+import platform
 import re
 import sys
 import time
@@ -575,7 +576,7 @@ class MTSend(object):
             self._extra_headers = []
             self._use_builtin_types = True
             self._use_datetime = True
-            self.user_agent = "mtsend.py/%s" % __version__
+            self.user_agent = "Mozilla/5.0 (X11; %s %s) Firefox/%s mtsend.py/%s" % (platform.system(), platform.machine(), platform.python_version(),  __version__)
 
 
         def get_authentication(self):
