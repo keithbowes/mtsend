@@ -184,6 +184,7 @@ class MTSend(object):
 
         posts = func(self.get_blogid(), self.get_username(), 
             self.get_password(), num)
+        num = len(posts)
 
         self.log(1, 'Retrieve "%d" recent posts...', num)
         result = [['ID', 'Date', 'Title']]
