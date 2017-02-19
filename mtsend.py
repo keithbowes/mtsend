@@ -166,6 +166,7 @@ class MTSend(object):
         func  = srv.metaWeblog.getRecentPosts
         posts = func(self.get_blogid(), self.get_username(), 
             self.get_password(), num)
+        num = len(posts)
 
         self.log(1, 'Retrieve "%d" recent posts...', num)
         result = [['ID', 'Date', 'Title']]
