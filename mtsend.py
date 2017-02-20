@@ -66,14 +66,8 @@ class MTSend(object):
         self.rpcsrv = None
         self.site = None
         self.modeopt = None
-        self.platform = None
 
     def execute(self):
-        try: 
-            self.platform = self._getSite('platform')
-        except:
-            self.platform = 'mt'
-
         try:
             handler = getattr(self, 'execute_%s' % self.mode)
         except AttributeError:
@@ -97,18 +91,11 @@ class MTSend(object):
 
     def execute_c(self):
         srv = self.getRPCServer()
-        if self.platform != "mw":
-            func = srv.mt.getCategoryList
-        else:
-            func = srv.metaWeblog.getCategories
-        cts = func(self.get_blogid(), self.get_username(), 
+        cts = srv.mt.getCategoryList(self.get_blogid(), self.get_username(), 
             self.get_password())
         result = []
         for cat in cts:
-            if self.platform != "mw":
-                result.append([cat['categoryId'], cat['categoryName']])
-            else:
-                result.append([cat['htmlUrl'], cat['description']])
+            result.append([cat['categoryId'], cat['categoryName']])
         sorted(result)
         result[0:0] = [['ID', 'Category Name']]
         print_table(result)
@@ -172,17 +159,9 @@ class MTSend(object):
         try:
             num = int(self.modeopt)
         except:
-            if self.platform != 'mt':
-                num = 0
-            else:
-                num = 5
+            num = 0
 
-        if self.platform != 'mt':
-            func  = srv.metaWeblog.getRecentPosts
-        else:
-            func = srv.mt.getRecentPostTitles
-
-        posts = func(self.get_blogid(), self.get_username(), 
+        posts = srv.metaWeblog.getRecentPosts(self.get_blogid(), self.get_username(), 
             self.get_password(), num)
         num = len(posts)
 
@@ -270,7 +249,7 @@ class MTSend(object):
 
         # Default we will use 'UTF-8' encoding, if the site encoding option is
         # not provided.
-        return xmlrpc.client.ServerProxy(self._getSite('url'), transport, 
+        return xmlrpc.client.ServerProxy(self._getSite('url'), transport,
             self._getSite('encoding', 'UTF-8'))
 
     def get_blogid(self):
@@ -644,7 +623,7 @@ def print_post(post, cts):
         print(post['mt_excerpt'])
 
 
-def print_table(table, heading=1):
+def print_table(table):
     # We have to work out the maximum width first.
     if not table:
         return
@@ -665,7 +644,7 @@ def print_table(table, heading=1):
     print(border)
     for row in table:
         print(format % tuple(row))
-        if (not hdrs) and heading and (len(table) > 1):
+        if (not hdrs) and (len(table) > 1):
             print(border)
             hdrs = 1
     print(border)

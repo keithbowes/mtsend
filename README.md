@@ -41,18 +41,15 @@ Site Section:
     
 <pre>
     [site-test]
-    url=http://testdomain.com/mtinstall/mt-xmlrpc.cgi
+    url=http://testdomain.com/xmlrpc.php
     username=foo
     password=bar
     encoding=UTF-8
-    platform=mt
 </pre>
 
   It defines site "test" with the URL to the MovableType's XML-RPC CGI
   script, and the username/password used to access that site. "encoding" is
-  optional, and defaults to UTF-8. "platform" is optional, defaulting to mt.
-  If you use another blogging platform, setting this will help make certain
-  mt-incompatible functionality available.
+  optional, and defaults to UTF-8.
 
 Blog Section:
   You can have multiple blog sections for each Movable Type blogs you have
