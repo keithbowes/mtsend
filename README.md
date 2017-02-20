@@ -8,14 +8,13 @@ XML-RPC calls. For more information about this script, visit:
 
 ## REQUIREMENTS
 mtsend requires [Python](http://python.org).  The master branch requires Python
-3.0 or higher.  The python-2.7 branch has most fixes and new features (the
-exceptions are XDG directory support and the platform key) backported and can
-run in Python 2.7.x.  The python-2.4 branch contains Scott Yang's original
-version 1.1 and should work in versions of Python from 2.4 to 2.6.x (and
-perhaps older versions of Python 2.x), but doesn't contain the improvements of
-the master and python-2.7 branches (mostly because I don't want to install
-ancient versions of Python to test them; as of writing, Python 2.7.x is the
-most used version of Python, and older versions are dwindling).
+3.0 or higher.  The python-2.7 branch has most fixes and new features
+backported and can run in Python 2.7.x.  The python-2.4 branch contains Scott
+Yang's original version 1.1 and should work in versions of Python from 2.4 to
+2.6.x (and perhaps older versions of Python 2.x), but doesn't contain the
+improvements of the master and python-2.7 branches (mostly because I don't want
+to install ancient versions of Python to test them; as of writing, Python 2.7.x
+is the most used version of Python, and older versions are dwindling).
 
 
 ## CONFIGURATION FILE

@@ -32,7 +32,7 @@ Options:
     -a alias    Use "alias" as the blog alias. This script will locate
                 relavent site URL/username/password information using this
                 alias.
-    -c config   Load "config" as configuration file, instead of $HOME/.mtsendrc
+    -c config   Load "config" as configuration file, instead of the default.
     -h          Display this help message.
     -q          Decrease verbose level.
     -v          Increase verbose level. Message goes to standard error.
@@ -262,9 +262,29 @@ class MTSend(object):
     def get_username(self):
         return self._getSite('username')
 
+    def getConfigFile(self):
+      try:
+        import glib
+        configdirs = (glib.get_user_config_dir(),) + glib.get_system_config_dirs()
+        for configdir in configdirs:
+          config = os.path.join(configdir, 'mtsend', 'mtsend.rc')
+          if os.path.exists(config):
+            break
+          assert(os.path.exists(config))
+      except:
+        try:
+          config = os.path.join(os.environ['XDG_CONFIG_HOME'], 'mtsend', 'mtsend.rc');
+        except:
+          config = os.path.join(os.environ['HOME'], '.config', 'mtsend', 'mtsend.rc')
+
+          if not os.path.exists(config):
+              config = os.path.join(os.environ['HOME'], '.mtsendrc')
+
+      return config
+
     def loadConfig(self, config):
         if config is None:
-            config = os.path.join(os.environ['HOME'], '.mtsendrc')
+            config = self.getConfigFile()
 
         if not os.access(config, os.R_OK):
             raise Exception, \
