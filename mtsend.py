@@ -263,12 +263,21 @@ class MTSend(object):
 
     def getConfigFile(self):
       try:
-        config = os.path.join(os.environ['XDG_CONFIG_HOME'], 'mtsend/mtsend.rc');
+        from gi.repository import GLib
+        configdirs = [GLib.get_user_config_dir()] + GLib.get_system_config_dirs()
+        for configdir in configdirs:
+          config = os.path.join(configdir, 'mtsend', 'mtsend.rc')
+          if os.path.exists(config):
+            break
+          assert(os.path.exists(config))
       except:
-        config = os.path.join(os.environ['HOME'], '.config/mtsend/mtsend.rc')
+        try:
+          config = os.path.join(os.environ['XDG_CONFIG_HOME'], 'mtsend', 'mtsend.rc');
+        except:
+          config = os.path.join(os.environ['HOME'], '.config', 'mtsend', 'mtsend.rc')
 
-        if not os.access(config, os.R_OK):
-            config = os.path.join(os.environ['HOME'], '.mtsendrc')
+          if not os.path.exists(config):
+              config = os.path.join(os.environ['HOME'], '.mtsendrc')
 
       if not os.access(config, os.R_OK):
           raise Exception('Configuration file is not readable')
