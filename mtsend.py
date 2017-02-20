@@ -87,7 +87,7 @@ class MTSend(object):
         result = [['ID', 'Blog Name', 'URL']]
         for blog in blogs:
             result.append([blog['blogid'], blog['blogName'], blog['url']])
-        print_table(result)
+        print_table(result, self._getSite('encoding', DEFAULT_ENCODING))
 
     def execute_c(self):
         srv = self.getRPCServer()
@@ -98,7 +98,7 @@ class MTSend(object):
             result.append([cat['categoryId'], cat['categoryName']])
         result.sort(lambda x, y: cmp(x[1], y[1]))
         result[0:0] = [['ID', 'Category Name']]
-        print_table(result)
+        print_table(result, self._getSite('encoding', DEFAULT_ENCODING))
 
     def execute_d(self):
       srv = self.getRPCServer()
@@ -176,7 +176,7 @@ class MTSend(object):
                 post['title']
             ])
 
-        print_table(result)
+        print_table(result, self._getSite('encoding', DEFAULT_ENCODING))
 
     def execute_n(self):
         self.log(1, 'Parsing post entry from standard input...')
@@ -205,7 +205,7 @@ class MTSend(object):
         ] for val in srv.mt.getTrackbackPings(self.modeopt)]
 
         result.insert(0, ['Title', 'URL', 'IP'])
-        print_table(result)
+        print_table(result, self._getSite('encoding', DEFAULT_ENCODING))
 
     def execute_r(self):
         srv = self.getRPCServer()
@@ -220,7 +220,7 @@ class MTSend(object):
 
         result.sort()
         result.insert(0, ['Key', 'Label'])
-        print_table(result)
+        print_table(result, self._getSite('encoding', DEFAULT_ENCODING))
 
     def execute_u(self):
         srv = self.getRPCServer()
@@ -248,10 +248,8 @@ class MTSend(object):
         httptype = urllib.splittype(self._getSite('url'))[0]
         transport = get_rpc_transport(httptype)
 
-        # Default we will use 'UTF-8' encoding, if the site encoding option is
-        # not provided.
         return xmlrpclib.ServerProxy(self._getSite('url'), transport, 
-            self._getSite('encoding', 'UTF-8'))
+            self._getSite('encoding', DEFAULT_ENCODING))
 
     def get_blogid(self):
         return self._getBlog('blogid')
@@ -647,7 +645,7 @@ def print_post(post, cts):
         print post['mt_excerpt']
 
 
-def print_table(table):
+def print_table(table, encoding):
     # We have to work out the maximum width first.
     if not table:
         return
@@ -655,7 +653,7 @@ def print_table(table):
     for row in table:
         for idx, cell in zip(range(len(row)), row):
             if isinstance(cell, unicode):
-                cell = cell.encode(DEFAULT_ENCODING)
+                cell = cell.encode(encoding)
             elif not isinstance(cell, str):
                 cell = str(cell)
             row[idx] = cell
@@ -676,7 +674,7 @@ def print_table(table):
     print border
 
 
-DEFAULT_ENCODING = 'utf-8'
+DEFAULT_ENCODING = 'iso-8859-1'
 
 
 def main(args):

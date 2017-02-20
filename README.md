@@ -44,12 +44,12 @@ Site Section:
     url=http://testdomain.com/xmlrpc.php
     username=foo
     password=bar
-    encoding=UTF-8
+    encoding=ISO-8859-1
 </pre>
 
   It defines site "test" with the URL to the MovableType's XML-RPC CGI
   script, and the username/password used to access that site. "encoding" is
-  optional, and defaults to UTF-8.
+  optional, and defaults to ISO-8859-1.
 
 Blog Section:
   You can have multiple blog sections for each Movable Type blogs you have
