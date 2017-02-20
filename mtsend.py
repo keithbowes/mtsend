@@ -91,8 +91,7 @@ class MTSend(object):
 
     def execute_c(self):
         srv = self.getRPCServer()
-        func = srv.mt.getCategoryList
-        cts = func(self.get_blogid(), self.get_username(), 
+        cts = srv.mt.getCategoryList(self.get_blogid(), self.get_username(), 
             self.get_password())
         result = []
         for cat in cts:
@@ -163,8 +162,7 @@ class MTSend(object):
         except:
             num = 5
 
-        func  = srv.metaWeblog.getRecentPosts
-        posts = func(self.get_blogid(), self.get_username(), 
+        posts = srv.metaWeblog.getRecentPosts(self.get_blogid(), self.get_username(), 
             self.get_password(), num)
         num = len(posts)
 
@@ -629,7 +627,7 @@ def print_post(post, cts):
         print post['mt_excerpt']
 
 
-def print_table(table, heading=1):
+def print_table(table):
     # We have to work out the maximum width first.
     if not table:
         return
@@ -652,7 +650,7 @@ def print_table(table, heading=1):
     print border
     for row in table:
         print format % tuple(row)
-        if (not hdrs) and heading and (len(table) > 1):
+        if (not hdrs) and (len(table) > 1):
             print border
             hdrs = 1
     print border
