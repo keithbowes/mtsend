@@ -76,8 +76,8 @@ class MTSend(object):
             handler()
 
     def execute_a(self):
-      srv = self.getRPCServer()
-      srv.wp.newCategory(self.get_blogid(), self.get_username(), self.get_password(), {'name': self.modeopt})
+        srv = self.getRPCServer()
+        srv.wp.newCategory(self.get_blogid(), self.get_username(), self.get_password(), {'name': self.modeopt})
 
     def execute_b(self):
         self.site = self.modeopt
@@ -101,8 +101,8 @@ class MTSend(object):
         print_table(result)
 
     def execute_d(self):
-      srv = self.getRPCServer()
-      srv.wp.deleteCategory(int(self.get_blogid()), self.get_username(), self.get_password(), int(self.modeopt))
+        srv = self.getRPCServer()
+        srv.wp.deleteCategory(int(self.get_blogid()), self.get_username(), self.get_password(), int(self.modeopt))
 
     def execute_e(self):
         self.log(1, 'Parsing post entry from standard input...')
@@ -114,7 +114,7 @@ class MTSend(object):
                 postid = post['postid']
             except KeyError:
                 raise Exception('Cannot discover post ID from the input.')
-            
+
         elif 'postid' in post and (post['postid'] != postid):
             raise Exception('Post ID does not match. ID in the input is "%s"' % \
                     post['postid'])
@@ -130,7 +130,7 @@ class MTSend(object):
                 ','.join([cat['categoryId'] for cat in cts]), postid)
             srv.mt.setPostCategories(postid, self.get_username(),
                 self.get_password(), cts)
- 
+
     def execute_g(self):
         srv = self.getRPCServer()
         if self.modeopt.lower() == '-':
@@ -194,7 +194,7 @@ class MTSend(object):
                 self.get_password(), cts)
 
         print(postid)
-    
+
     def execute_p(self):
         srv = self.getRPCServer()
         result = [[
@@ -230,15 +230,15 @@ class MTSend(object):
             'name': self.modeopt,
             'bits': xmlrpc.client.Binary(bin),
         }
-        
+
         result = srv.metaWeblog.newMediaObject(self.get_blogid(), 
             self.get_username(), self.get_password(), media_object)
 
         print(result['url'])
 
     def execute_x(self):
-      srv = self.getRPCServer()
-      srv.blogger.deletePost('mtsend', self.modeopt, self.get_username(), self.get_password(), True)
+        srv = self.getRPCServer()
+        srv.blogger.deletePost('mtsend', self.modeopt, self.get_username(), self.get_password(), True)
 
     def getRPCServer(self):
         if self.rpcsrv is not None:
@@ -262,27 +262,27 @@ class MTSend(object):
         return self._getSite('username')
 
     def getConfigFile(self):
-      try:
-        from gi.repository import GLib
-        configdirs = [GLib.get_user_config_dir()] + GLib.get_system_config_dirs()
-        for configdir in configdirs:
-          config = os.path.join(configdir, 'mtsend', 'mtsend.rc')
-          if os.path.exists(config):
-            break
-          assert(os.path.exists(config))
-      except:
         try:
-          config = os.path.join(os.environ['XDG_CONFIG_HOME'], 'mtsend', 'mtsend.rc');
+            from gi.repository import GLib
+            configdirs = [GLib.get_user_config_dir()] + GLib.get_system_config_dirs()
+            for configdir in configdirs:
+                config = os.path.join(configdir, 'mtsend', 'mtsend.rc')
+                if os.path.exists(config):
+                    break
+            assert(os.path.exists(config))
         except:
-          config = os.path.join(os.environ['HOME'], '.config', 'mtsend', 'mtsend.rc')
+            try:
+                config = os.path.join(os.environ['XDG_CONFIG_HOME'], 'mtsend', 'mtsend.rc');
+            except:
+                config = os.path.join(os.environ['HOME'], '.config', 'mtsend', 'mtsend.rc')
 
-          if not os.path.exists(config):
-              config = os.path.join(os.environ['HOME'], '.mtsendrc')
+                if not os.path.exists(config):
+                    config = os.path.join(os.environ['HOME'], '.mtsendrc')
 
-      if not os.access(config, os.R_OK):
-          raise Exception('Configuration file is not readable')
+        if not os.access(config, os.R_OK):
+            raise Exception('Configuration file is not readable')
 
-      return config
+        return config
 
     def loadConfig(self, config):
         if config is None:
@@ -360,7 +360,7 @@ class MTSend(object):
         try:
             if self.site is None:
                 self.site = self._getBlog('site')
-                
+
             return self.config.get('site-%s' % self.site, option)
         except (configparser.Error, KeyError):
             if default is not None:
@@ -587,7 +587,7 @@ def print_post(post, cts):
         print('TITLE:', post['title'])
     print('DATE:', time.strftime('%m/%d/%Y %H:%M:%S',
         decode_iso8601(post['dateCreated'])))
- 
+
     for cat in cts:
         if cat['isPrimary']:
             print('PRIMARY CATEGORY:', cat['categoryName'])
@@ -602,10 +602,10 @@ def print_post(post, cts):
 
     if 'mt_allow_comments' in post:
         print('ALLOW COMMENTS:', post['mt_allow_comments'])
-    
+
     if 'mt_allow_pings' in post:
         print('ALLOW PINGS:', post['mt_allow_pings'])
-    
+
     if 'mt_convert_breaks' in post:
         print('CONVERT BREAKS:', post['mt_convert_breaks'])
 
@@ -625,7 +625,7 @@ def print_post(post, cts):
         print('-----')
         print('EXTENDED BODY:')
         print(post['mt_text_more'])
-        
+
     if post.get('mt_excerpt'):
         print('-----')
         print('EXCERPT:')
@@ -662,7 +662,7 @@ def print_table(table):
 def main(args):
     import getopt
     try:
-      opts, args = getopt.getopt(args, 'A:a:B:Cc:D:E:G:hL:NP:qR:TU:vVX:')
+        opts, args = getopt.getopt(args, 'A:a:B:Cc:D:E:G:hL:NP:qR:TU:vVX:')
     except getopt.GetoptError as ex:
         print('Error: '+str(ex), file=sys.stderr)
         print(__doc__, file=sys.stderr)
@@ -673,7 +673,7 @@ def main(args):
 
     for opt, arg in opts:
         if opt == '-A':
-          mtsend.setMode('a', arg)
+            mtsend.setMode('a', arg)
         elif opt == '-a':
             mtsend.alias = arg
         elif opt == '-B':
@@ -687,7 +687,7 @@ def main(args):
                 print(mtsend.getConfigFile(), file=sys.stderr)
                 sys.exit(0)
         elif opt == '-D':
-          mtsend.setMode('d', arg)
+            mtsend.setMode('d', arg)
         elif opt == '-E':
             mtsend.setMode('e', arg)
         elif opt == '-G':
@@ -715,7 +715,7 @@ def main(args):
             print('Version %s' % __version__, file=sys.stderr)
             sys.exit(0)
         elif opt == '-X':
-          mtsend.setMode('x', arg)
+            mtsend.setMode('x', arg)
         else:
             print('Warning: Option "%s" is not handled.' % opt, file=sys.stderr)
 
