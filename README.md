@@ -1,5 +1,5 @@
-# Command Line Movable Type Client
-This application allows you to edit/post entries on a Movable Type site via
+# Command Line Blogging Client
+This application allows you to edit/post entries on a blog via
 XML-RPC calls. For more information about this script, visit:
 
 * [GitHub repo](https://github.com/keithbowes/mtsend)
@@ -7,14 +7,15 @@ XML-RPC calls. For more information about this script, visit:
 
 
 ## REQUIREMENTS
-mtsend requires [Python](http://python.org).  The master branch requires Python
-3.0 or higher.  The python-2.7 branch has most fixes and new features
-backported and can run in Python 2.7.x.  The python-2.4 branch contains Scott
-Yang's original version 1.1 and should work in versions of Python from 2.4 to
-2.6.x (and perhaps older versions of Python 2.x), but doesn't contain the
-improvements of the master and python-2.7 branches (mostly because I don't want
-to install ancient versions of Python to test them; as of writing, Python 2.7.x
-is the most used version of Python, and older versions are dwindling).
+mtsend.py requires [Python](http://python.org).  The master branch requires
+Python 3.0 or higher.  The python-2.7 branch has most fixes and new features
+backported and can run in Python 2.7.x.  The python-2.4 branch contains [Scott
+Yang](https://github.com/scottyang)'s original version 1.1 and should work in
+versions of Python from 2.4 to 2.6.x (and perhaps older versions of Python
+2.x), but doesn't contain the improvements of the master and python-2.7
+branches (mostly because I don't want to install ancient versions of Python to
+test them; as of writing, Python 2.7.x is the most used version of Python, and
+older versions are dwindling).
 
 
 ## CONFIGURATION FILE
@@ -35,7 +36,7 @@ Global Section:
   It shows the default blog alias will be 'example'
 
 Site Section:
-  You can have multiple site sections for each Movable Type installation
+  You can have multiple site sections for each blog installation
   you have access to. The section name will be [site-"site name"]. For
   example:
     
@@ -47,15 +48,15 @@ Site Section:
     encoding=ISO-8859-1
 </pre>
 
-  It defines site "test" with the URL to the MovableType's XML-RPC CGI
-  script, and the username/password used to access that site. "encoding" is
-  optional, and defaults to ISO-8859-1.
+  It defines site "test" with the URL to your site's XML-RPC script, and the
+  username/password used to access that site. "encoding" is optional, and
+  defaults to ISO-8859-1.
 
 Blog Section:
-  You can have multiple blog sections for each Movable Type blogs you have
-  on the sites you have access to. Blogs are distinguished by their 'alias',
-  which you can select in the command line using -a. The section name for
-  this blog will be [blog-"blog alias"]. For example,
+  You can have multiple blog sections for each blog you have on the sites you
+  have access to. Blogs are distinguished by their 'alias', which you can
+  select in the command line using -a. The section name for this blog will be
+  [blog-"blog alias"]. For example,
 
 <pre>
     [blog-example]
@@ -77,26 +78,22 @@ format](http://movabletype.org/documentation/appendices/import-export-format.htm
 
 It consists of a header and body. For example:
 
-<pre>
-
-  [header1]: [value1]
-  [header2]: [value2]
-  [header3]: [value3]
-  -----
-  BODY:
-  ....
-  -----
-  EXTENDED BODY:
-  ....
-  -----
-  EXCERPT:
-  ....
-
-</pre>
+  <var>header1</var>: <var>value1</var><br />
+  <var>header2</var>: <var>value2</var><br />
+  <var>header3</var>: <var>value3</var><br />
+  \-\-\-\-\-<br />
+  BODY:<br />
+  \..\..<br />
+  \-\-\-\-\-<br />
+  EXTENDED BODY:<br />
+  \..\..<br />
+  \-\-\-\-\-<br />
+  EXCERPT:<br />
+  \..\..<br />
 
 Extended body and excerpt are optional in a post. Most header elements are
 optional when you are creating a new post. If they do not provide a value,
-then the default value configured by Movable Type will be used.
+then the default value configured by your blog will be used.
 
 These are the header keys/values:
 
@@ -105,16 +102,11 @@ Key             | Value                           | Description
 TITLE           |                                 | The title of this post.
 ALLOW COMMENTS  | 0/1                             | Whether this post allows comments.
 ALLOW PINGS     | 0/1                             | Whether this post allows trackback pings.
-CATEGORY        |                                 | The category associated with this post entry. You can have multiple
-                |                                 | CATEGORY in the header. The first CATEGORY automatically becomes the
-                |                                 | primary category, if PRIMARY CATEGORY is not specified.
-CONVERT BREAKS  | 0/1/customised text filter name | Whether the line break will be automatically converted into &lt;br/&gt; and
-                |                                 | &lt;p/&gt; when posted. It can also be the name of an installed text filter.
-                |                                 | To get the list of installed text filter, use mtsend.py -T.
-DATE            | dd/mm/yyyy HH:MM:SS [AM|PM]     | The post date. It might not work if you are creating a new post.
+CATEGORY        |                                 | The category associated with this post entry. You can have multiple CATEGORY in the header. The first CATEGORY automatically becomes the primary category, if PRIMARY CATEGORY is not specified.
+CONVERT BREAKS  | 0/1/customised text filter name | Whether the line break will be automatically converted into &lt;br/&gt; and &lt;p/&gt; when posted. It can also be the name of an installed text filter. To get the list of installed text filter, use mtsend.py -T.
+DATE            | dd/mm/yyyy HH:MM:SS [AM\|PM]    | The post date. It might not work if you are creating a new post.
 KEYWORDS        |                                 | The keywords of your post.
-PING            |                                 | The URL to be pinged during posting. You can have multiple PING in the
-                |                                 | header.
+PING            |                                 | The URL to be pinged during posting. You can have multiple PING in the header.
 
 
 ## COMMAND LINE ARGUMENTS
@@ -139,11 +131,11 @@ Invoke <kbd>python3 \-- mtsend.py</kbd> to see a list of arguments.
 + Add SSL support for proxy.
 
 ### [1.0](http://scott.yang.id.au/2005/05/update-mtsendpy-10-has-been-released.html) - 20 May 2005
-+ ```time``` module related fix for Python 2.4.
++ `time` module related fix for Python 2.4.
 + Ensure all cells passed to print_table() function are in string-type.
 
 ### 0.6.1 - 6 Apr 2004
-+ Properly handles mt_allow_comments for MT2.6 servers.
++ Properly handles mt\_allow\_comments for MT2.6 servers.
 
 ### [0.6](http://scott.yang.id.au/2004/04/update-mtsendpy-06-has-been-released.html) - 1 Apr 2004
 + Add build-in support for HTTP proxy server, which is detected via
@@ -151,7 +143,7 @@ Invoke <kbd>python3 \-- mtsend.py</kbd> to see a list of arguments.
 + Alternative encoding for XML-RPC packets.
 
 ### [0.5](http://scott.yang.id.au/2003/10/update-mtsendpy-05-has-been-released.html) - 14 Oct 2003
-+ Remove the support of MT2.5. Use the [older version](http://scott.yang.id.au/archives/000132.php) of mtsend.py if you
++ Remove the support of MT2.5. Use the [older version](http://scott.yang.id.au/2003/03/update-mtsendpy-04-has-been-released.html) of mtsend.py if you
   need these supports.
 + Support KEYWORDS and PING into the header.
 + Add new functionalities provided by MT2.6's backend.
