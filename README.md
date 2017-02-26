@@ -97,16 +97,17 @@ then the default value configured by your blog will be used.
 
 These are the header keys/values:
 
-Key                 | Value                           | Description
--------------- ---- | ------------------------------- | -----------
-TITLE               |                                 | The title of this post.
-ALLOW&nbsp;COMMENTS | 0/1                             | Whether this post allows comments.
-ALLOW&nbsp;PINGS    | 0/1                             | Whether this post allows trackback pings.
-CATEGORY            |                                 | The category associated with this post entry. You can have multiple CATEGORY in the header. The first CATEGORY automatically becomes the primary category, if PRIMARY CATEGORY is not specified.
-CONVERT&nbsp;BREAKS | 0/1/customised text filter name | Whether the line break will be automatically converted into &lt;br/&gt; and &lt;p/&gt; when posted. It can also be the name of an installed text filter. To get the list of installed text filter, use mtsend.py -T.
-DATE                | dd/mm/yyyy HH:MM:SS [AM\|PM]    | The post date. It might not work if you are creating a new post.
-KEYWORDS            |                                 | The keywords of your post.
-PING                |                                 | The URL to be pinged during posting. You can have multiple PING in the header.
+Key                   | Value                                  | Description
+---------------------  --------------------------------------- | -----------
+TITLE                 |                                        | The title of this post.
+ALLOW&nbsp;COMMENTS   | 0/1                                    | Whether this post allows comments.
+ALLOW&nbsp;PINGS      | 0/1                                    | Whether this post allows trackback pings.
+PRIMARY&nbsp;CATEGORY |                                        | The primary category of this post.
+CATEGORY              |                                        | The category associated with this post entry. You can have multiple CATEGORY keys in the header. The first CATEGORY key automatically becomes the primary category, if the PRIMARY CATEGORY key is not specified.
+CONVERT&nbsp;BREAKS   | 0/1/customized text filter name | Whether the line break will be automatically converted into &lt;br/&gt; and &lt;p/&gt; when posted. It can also be the name of an installed text filter. To get the list of installed text filters, use mtsend.py -T.
+DATE                  | dd/mm/yyyy&nbsp;HH:MM:SS&nbsp;[AM\|PM] | The post date. It might not work if you are creating a new post.
+KEYWORDS              |                                        | The keywords of your post.
+PING                  |                                        | The URL to be pinged during posting. You can have multiple PING keys in the header.
 
 
 ## COMMAND LINE ARGUMENTS
