@@ -21,7 +21,7 @@ older versions are dwindling).
 ## CONFIGURATION FILE
 Configuration file for mtsend.py is in the style of Windows INI files, which
 consist of sections and key/value pairs. There are 3 main sections - global,
-site and blog. The configuration file should be mode 600.
+site and blog. The configuration file should be read-only.
 
 Global Section:
   There is only one key/value in this section, and it is used to note the
