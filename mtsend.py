@@ -266,21 +266,34 @@ class MTSend(object):
             from gi.repository import GLib
             configdirs = [GLib.get_user_config_dir()] + GLib.get_system_config_dirs()
             for configdir in configdirs:
-                config = os.path.join(configdir, 'mtsend', 'mtsend.rc')
+                config = os.path.join(configdir, 'mtsend', 'mtsend.ini')
+                print("Looking for configuration file %s" % config)
                 if os.path.exists(config):
                     break
             assert(os.path.exists(config))
         except:
             try:
-                config = os.path.join(os.environ['XDG_CONFIG_HOME'], 'mtsend', 'mtsend.rc');
+                config = os.path.join(os.environ['XDG_CONFIG_HOME'], 'mtsend', 'mtsend.ini');
+                print("Looking for configuration file %s" % config)
+                assert(os.path.exists(config));
             except:
-                config = os.path.join(os.environ['HOME'], '.config', 'mtsend', 'mtsend.rc')
+                try:
+                    config = os.path.join(os.environ['HOME'], '.config', 'mtsend', 'mtsend.ini')
+                    print("Looking for configuration file %s" % config)
+                    assert(os.path.exists(config));
+                except:
+                    try:
+                        config = os.path.join(os.environ['HOME'], '.mtsendrc')
+                        print("Looking for configuration file %s" % config)
+                        assert(os.path.exists(config))
+                    except:
+                        config = 'mtsend.ini'
+                        print("Looking for configuration file %s" % config)
 
-                if not os.path.exists(config):
-                    config = os.path.join(os.environ['HOME'], '.mtsendrc')
-
-        if not os.access(config, os.R_OK):
-            raise Exception('Configuration file is not readable')
+        if os.access(config, os.R_OK):
+            print("Using configuration file %s" % config)
+        else:
+            raise Exception('Configuration file doesn\'t exist or is not readable')
 
         return config
 
