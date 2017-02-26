@@ -110,7 +110,7 @@ PING            |                                 | The URL to be pinged during 
 
 
 ## COMMAND LINE ARGUMENTS
-Invoke <kbd>python3 \-- mtsend.py</kbd> to see a list of arguments.
+Invoke <kbd>python2 \-- mtsend.py</kbd> to see a list of arguments.
 
 
 ## HISTORY
