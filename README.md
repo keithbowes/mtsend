@@ -1,6 +1,6 @@
 # Command Line Blogging Client
-This application allows you to edit/post entries on a blog via
-XML-RPC calls. For more information about this script, visit:
+This script allows you to edit/post entries on a blog via XML-RPC calls. For
+more information about this script, visit:
 
 * [GitHub repo](https://github.com/keithbowes/mtsend)
 * [Scott Yang's original site](https://scott.yang.id.au/2002/12/mtsendpy/)
@@ -74,7 +74,7 @@ Blog Section:
 ## POST FORMAT
 When editing or posting via mtsend, the post needs to be in a specific format.
 The format is very close to [Movable Type's import/export
-format](http://movabletype.org/documentation/appendices/import-export-format.htm).
+format](http://movabletype.org/documentation/appendices/import-export-format.html).
 
 It consists of a header and body. For example:
 
